@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 2,
   "id": "2026-10-18-exemple",
   "title": "Exemple de run",
   "track": "standard",
@@ -30,13 +31,17 @@
       "acceptanceCriteria": ["AC1"],
       "dependsOn": [],
       "files": ["src/exemple.py"],
+      "newFiles": [],
+      "origin": "plan",
       "agent": "implementer",
       "tests": ["Test unitaire du cas nominal et du cas vide"],
       "risks": [],
       "requiresHuman": false,
       "status": "draft",
       "attempts": 0,
-      "validation": { "checks": "not_run", "review": null, "evidence": [] }
+      "consultations": 0,
+      "validation": { "checks": "not_run", "review": null, "evidence": [] },
+      "scope": null
     }
   ],
   "checks": [
@@ -49,6 +54,11 @@
       "summary": ""
     }
   ],
+  "planCheck": null,
+  "scope": null,
+  "ci": null,
+  "pr": null,
+  "prComments": { "processed": [], "rounds": 0 },
   "blockedReason": null,
   "log": [
     { "at": "2026-10-18T10:00:00Z", "actor": "orchestrator", "event": "run_created", "detail": "Piste standard" },

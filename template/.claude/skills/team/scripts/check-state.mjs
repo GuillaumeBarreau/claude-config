@@ -8,16 +8,21 @@
 //   vérifier que les contrôles obligatoires du projet figurent bien dans le run.
 // Sortie : 0 si l'état est valide, 1 sinon (erreurs sur stderr).
 //
+// Schéma 2 (« schemaVersion »: 2, à partir de 0.3) : règles en plus sur la vérification du
+// plan (check-plan), le périmètre des tâches (check-scope) et la CI. Un state.json sans
+// schemaVersion (runs 0.2) reste jugé avec les seules règles d'origine.
+//
 // Limite : le script juge un état, pas son historique. Il ne voit pas, par exemple, une
 // piste passée de standard à quick ; le journal (log) doit le tracer.
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export const RUN_STATUSES = [
   'qualifying', 'specifying', 'awaiting_input', 'planning', 'awaiting_plan_approval',
   'ready_for_execution', 'executing', 'checking', 'reviewing',
-  'awaiting_delivery_approval', 'done', 'blocked', 'cancelled',
+  'awaiting_delivery_approval', 'awaiting_ci', 'done', 'blocked', 'cancelled',
 ];
 export const TRACKS = ['quick', 'standard', 'full'];
 export const TASK_STATUSES = ['draft', 'ready', 'in_progress', 'blocked', 'in_review', 'done', 'failed'];
@@ -28,11 +33,18 @@ export const CHECK_STATUSES = ['not_run', 'passed', 'failed', 'n/a'];
 export const GATE_STATUSES = ['pending', 'passed', 'failed', 'waived'];
 export const GATES = ['plan', 'checks', 'review', 'delivery'];
 export const AUTONOMY = ['supervised', 'autonomous'];
+// Schéma 2 (0.3) : vérifications déterministes du plan, du périmètre et de la CI.
+export const SCHEMA_VERSION = 2;
+export const TASK_ORIGINS = ['plan', 'split', 'ci', 'pr-review'];
+export const PLAN_ORIGINS = ['plan', 'split'];
+export const CI_STATUSES = ['pending', 'passed', 'failed', 'n/a'];
+export const SCOPE_STATUSES = ['ok', 'deviation', 'sensitive'];
+export const PLAN_CHECK_STATUSES = ['passed', 'failed'];
 
 // Statuts qui supposent un plan validé (porte 1).
 const AFTER_PLAN = [
   'ready_for_execution', 'executing', 'checking', 'reviewing',
-  'awaiting_delivery_approval', 'done',
+  'awaiting_delivery_approval', 'awaiting_ci', 'done',
 ];
 const CLEARED = ['passed', 'waived'];
 // Portes que seul l'utilisateur peut valider ; toute dérogation (waived) aussi.
@@ -53,6 +65,54 @@ function oneOf(errors, where, value, allowed) {
   if (!allowed.includes(value)) {
     errors.push(`${where} : « ${value} » n'est pas une valeur autorisée (${allowed.join(', ')})`);
   }
+}
+
+const isObject = (v) => v !== null && typeof v === 'object' && !isArray(v);
+const originOf = (task) => task.origin ?? 'plan';
+export const isPlanTask = (task) => Boolean(task) && PLAN_ORIGINS.includes(originOf(task));
+export const schemaVersion = (state) => (Number.isInteger(state && state.schemaVersion) ? state.schemaVersion : 1);
+
+/**
+ * Empreinte du plan : ce que check-plan a vérifié. Tâches d'origine plan ou split,
+ * triées par id, réduites aux champs qui fixent le périmètre. Changer un fichier, un
+ * critère, une dépendance ou requiresHuman après la vérification change l'empreinte.
+ */
+export function planDigest(tasks) {
+  const reduced = (isArray(tasks) ? tasks : []).filter(isPlanTask)
+    .map((t) => ({
+      id: t.id,
+      files: t.files,
+      newFiles: t.newFiles ?? [],
+      acceptanceCriteria: t.acceptanceCriteria,
+      dependsOn: t.dependsOn,
+      requiresHuman: t.requiresHuman,
+    }))
+    .sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
+  return createHash('sha256').update(JSON.stringify(reduced)).digest('hex');
+}
+
+/** Dépendances inconnues et cycles (aussi utilisé par check-plan). */
+export function dependencyErrors(tasks) {
+  const errors = [];
+  const deps = new Map((isArray(tasks) ? tasks : []).filter((t) => t && t.id).map((t) => [t.id, t.dependsOn || []]));
+  for (const [id, list] of deps) {
+    for (const dep of isArray(list) ? list : []) {
+      if (!deps.has(dep)) errors.push(`tasks (${id}).dependsOn : tâche inconnue « ${dep} »`);
+    }
+  }
+  const visited = new Map(); // 1 = en cours de visite, 2 = terminé
+  const visit = (id, path) => {
+    if (visited.get(id) === 2 || !deps.has(id)) return;
+    if (visited.get(id) === 1) {
+      errors.push(`tasks : cycle de dépendances (${[...path, id].join(' → ')})`);
+      return;
+    }
+    visited.set(id, 1);
+    for (const dep of isArray(deps.get(id)) ? deps.get(id) : []) visit(dep, [...path, id]);
+    visited.set(id, 2);
+  };
+  for (const id of deps.keys()) visit(id, []);
+  return errors;
 }
 
 function checkTasks(state, errors) {
@@ -97,24 +157,7 @@ function checkTasks(state, errors) {
   }
 
   // Dépendances : existence puis absence de cycle.
-  const deps = new Map(state.tasks.filter((t) => t && t.id).map((t) => [t.id, t.dependsOn || []]));
-  for (const [id, list] of deps) {
-    for (const dep of isArray(list) ? list : []) {
-      if (!deps.has(dep)) errors.push(`tasks (${id}).dependsOn : tâche inconnue « ${dep} »`);
-    }
-  }
-  const visited = new Map(); // 1 = en cours de visite, 2 = terminé
-  const visit = (id, path) => {
-    if (visited.get(id) === 2 || !deps.has(id)) return;
-    if (visited.get(id) === 1) {
-      errors.push(`tasks : cycle de dépendances (${[...path, id].join(' → ')})`);
-      return;
-    }
-    visited.set(id, 1);
-    for (const dep of isArray(deps.get(id)) ? deps.get(id) : []) visit(dep, [...path, id]);
-    visited.set(id, 2);
-  };
-  for (const id of deps.keys()) visit(id, []);
+  errors.push(...dependencyErrors(state.tasks));
 }
 
 function checkChecks(state, errors) {
@@ -238,6 +281,113 @@ function checkRules(state, errors, team) {
   }
 }
 
+// --- Schéma 2 -----------------------------------------------------------------------
+
+const isCount = (v) => Number.isInteger(v) && v >= 0;
+
+function checkScopeShape(errors, where, scope) {
+  if (scope === undefined || scope === null) return;
+  if (!isObject(scope)) {
+    errors.push(`${where} : doit être un objet`);
+    return;
+  }
+  oneOf(errors, `${where}.status`, scope.status, SCOPE_STATUSES);
+  for (const key of ['changed', 'outOfPlan', 'outOfPlanTests', 'sensitive']) {
+    if (scope[key] !== undefined && !isArray(scope[key])) errors.push(`${where}.${key} : doit être une liste`);
+  }
+}
+
+/** R5 : forme et valeurs des champs ajoutés par le schéma 2. */
+function checkSchema2Fields(state, errors) {
+  const pc = state.planCheck;
+  if (pc !== undefined && pc !== null) {
+    if (!isObject(pc)) errors.push('planCheck : doit être un objet');
+    else {
+      oneOf(errors, 'planCheck.status', pc.status, PLAN_CHECK_STATUSES);
+      if (pc.errors !== undefined && !isArray(pc.errors)) errors.push('planCheck.errors : doit être une liste');
+    }
+  }
+  checkScopeShape(errors, 'scope', state.scope);
+  const ci = state.ci;
+  if (ci !== undefined && ci !== null) {
+    if (!isObject(ci)) errors.push('ci : doit être un objet');
+    else {
+      oneOf(errors, 'ci.status', ci.status, CI_STATUSES);
+      if (ci.rounds !== undefined && !isCount(ci.rounds)) errors.push('ci.rounds : doit être un entier ≥ 0');
+      if (ci.runs !== undefined && !isArray(ci.runs)) errors.push('ci.runs : doit être une liste');
+    }
+  }
+  if (state.pr !== undefined && state.pr !== null && !isObject(state.pr)) errors.push('pr : doit être un objet');
+  const prc = state.prComments;
+  if (prc !== undefined && prc !== null) {
+    if (!isObject(prc)) errors.push('prComments : doit être un objet');
+    else if (prc.processed !== undefined && !isArray(prc.processed)) errors.push('prComments.processed : doit être une liste');
+  }
+  for (const [i, task] of (isArray(state.tasks) ? state.tasks : []).entries()) {
+    if (!isObject(task)) continue;
+    const where = `tasks[${i}]${task.id ? ` (${task.id})` : ''}`;
+    if (task.origin !== undefined) oneOf(errors, `${where}.origin`, task.origin, TASK_ORIGINS);
+    if (task.origin === 'split' && !isString(task.splitFrom)) {
+      errors.push(`${where} : origin « split » exige « splitFrom » (id de la tâche redécoupée)`);
+    }
+    if (task.newFiles !== undefined && !isArray(task.newFiles)) errors.push(`${where}.newFiles : doit être une liste`);
+    if (task.consultations !== undefined && !isCount(task.consultations)) {
+      errors.push(`${where}.consultations : doit être un entier ≥ 0`);
+    }
+    checkScopeShape(errors, `${where}.scope`, task.scope);
+  }
+}
+
+/** R1 à R4 : règles de passage du schéma 2 (les portes sont déjà vérifiées). */
+function checkSchema2Rules(state, errors) {
+  const tasks = isArray(state.tasks) ? state.tasks.filter(isObject) : [];
+  const gate = (name) => state.gates[name].status;
+
+  // R1 : un plan validé est un plan vérifié par check-plan, et pas modifié depuis.
+  if (state.track !== 'quick' && CLEARED.includes(gate('plan'))) {
+    const pc = state.planCheck;
+    if (!isObject(pc) || pc.status !== 'passed' || pc.by !== 'check-plan') {
+      errors.push(`gates.plan validée exige planCheck « passed » posé par check-plan (scripts/check-plan.mjs --record) ; actuel : ${isObject(pc) ? `${pc.status} par ${pc.by}` : 'absent'}`);
+    } else if (pc.digest !== planDigest(tasks)) {
+      errors.push('planCheck.digest ne correspond plus aux tâches : le plan a changé depuis sa vérification — relance check-plan --record (et fais revalider le plan si besoin)');
+    }
+  }
+
+  // R2 : une tâche terminée a son périmètre vérifié par check-scope ; écart justifié,
+  // fichier sensible approuvé par l'utilisateur.
+  if (state.track !== 'quick') {
+    for (const task of tasks.filter((t) => t.status === 'done')) {
+      const where = `tâche ${task.id}`;
+      const scope = task.scope;
+      if (!isObject(scope) || scope.by !== 'check-scope') {
+        errors.push(`${where} : « done » exige scope posé par check-scope (scripts/check-scope.mjs --task ${task.id})`);
+        continue;
+      }
+      if ((scope.status === 'deviation' || (isArray(scope.outOfPlan) && scope.outOfPlan.length)) && !isString(scope.justification)) {
+        errors.push(`${where} : scope « deviation » exige une justification (fichiers hors plan : ${(scope.outOfPlan || []).join(', ')})`);
+      }
+      if ((scope.status === 'sensitive' || (isArray(scope.sensitive) && scope.sensitive.length)) && scope.approvedBy !== 'user') {
+        errors.push(`${where} : scope « sensitive » exige approvedBy « user » (accord explicite de l'utilisateur)`);
+      }
+    }
+  }
+
+  // R3 : la piste quick ne touche jamais une zone sensible.
+  if (state.track === 'quick' && isObject(state.scope) && isArray(state.scope.sensitive) && state.scope.sensitive.length) {
+    const paths = state.scope.sensitive.map((s) => (isObject(s) ? s.path : s)).join(', ');
+    errors.push(`piste quick : fichiers sensibles modifiés (${paths}) — passe en piste standard ou full`);
+  }
+
+  // R4 : attente de CI après la livraison ; jamais done avec une CI en échec.
+  if (state.status === 'awaiting_ci') {
+    if (gate('delivery') !== 'passed') errors.push(`status « awaiting_ci » exige gates.delivery « passed » ; actuel : ${gate('delivery')}`);
+    if (!isObject(state.ci)) errors.push('status « awaiting_ci » exige l\'objet « ci »');
+  }
+  if (state.status === 'done' && isObject(state.ci) && state.ci.status === 'failed') {
+    errors.push('status « done » impossible avec ci.status « failed » : corrige la CI ou passe le run en blocked');
+  }
+}
+
 /** @param team contenu de .claude/team.json (facultatif). */
 export function checkState(state, team = null) {
   const errors = [];
@@ -247,9 +397,17 @@ export function checkState(state, team = null) {
   oneOf(errors, 'status', state.status, RUN_STATUSES);
   if (state.autonomy !== undefined) oneOf(errors, 'autonomy', state.autonomy, AUTONOMY);
   if (!isArray(state.log)) errors.push('log : doit être une liste');
+  if (state.schemaVersion !== undefined && !(Number.isInteger(state.schemaVersion) && state.schemaVersion >= 1)) {
+    errors.push(`schemaVersion : entier ≥ 1 attendu (actuel : ${state.schemaVersion})`);
+  }
+  const v2 = schemaVersion(state) >= 2;
   checkTasks(state, errors);
   checkChecks(state, errors);
-  if (checkGates(state, errors)) checkRules(state, errors, team);
+  if (v2) checkSchema2Fields(state, errors);
+  if (checkGates(state, errors)) {
+    checkRules(state, errors, team);
+    if (v2) checkSchema2Rules(state, errors);
+  }
   return errors;
 }
 

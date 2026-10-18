@@ -140,9 +140,10 @@ test('check-run-state : un state.json invalide est renvoyé au modèle (code 2),
 
 // --- keep-running (Stop) ---
 
-function runWithStatus(root, status, sessionId = 'session-1') {
+function runWithStatus(root, status, sessionId = 'session-1', extra = {}) {
   const state = JSON.parse(readFileSync(join(root, '.claude/skills/team/templates/state.json'), 'utf8'));
-  writeFile(join(root, '.agent-runs', state.id, 'state.json'), JSON.stringify({ ...state, status, sessionId }));
+  writeFile(join(root, '.agent-runs', state.id, 'state.json'), JSON.stringify({ ...state, status, sessionId, ...extra }));
+  return join(root, '.agent-runs', state.id);
 }
 
 test('keep-running : un run en exécution de cette session empêche de s\'arrêter', () => {
@@ -162,10 +163,38 @@ test('keep-running : laisse s\'arrêter en attente, pour une autre session, ou a
   runWithStatus(root, 'executing', 'autre-session');
   assert.equal(runHook(root, 'keep-running.mjs', { session_id: 'session-1', stop_hook_active: false }).json, null);
 
+  // Une relance sans progrès : le second arrêt (stop_hook_active) passe.
   runWithStatus(root, 'executing');
+  assert.equal(runHook(root, 'keep-running.mjs', { session_id: 'session-1', stop_hook_active: false }).json?.decision, 'block');
   assert.equal(runHook(root, 'keep-running.mjs', { session_id: 'session-1', stop_hook_active: true }).json, null);
   // Sans .agent-runs/ : rien à faire, sans erreur.
   assert.equal(runHook(templateCopy(), 'keep-running.mjs', { session_id: 'session-1' }).code, 0);
+});
+
+test('keep-running : relance malgré stop_hook_active tant que state.json progresse', () => {
+  const root = templateCopy();
+  const stop = (active) => runHook(root, 'keep-running.mjs', { session_id: 'session-1', stop_hook_active: active }).json?.decision ?? null;
+  const runDir = runWithStatus(root, 'executing');
+  assert.equal(stop(false), 'block');
+  const memory = JSON.parse(readFileSync(join(runDir, '.keep-running.json'), 'utf8'));
+  assert.match(memory.digest, /^[0-9a-f]{64}$/);
+
+  // Le run avance (state.json modifié) : nouvelle relance, même après une relance.
+  runWithStatus(root, 'checking');
+  assert.equal(stop(true), 'block');
+  runWithStatus(root, 'reviewing');
+  assert.equal(stop(true), 'block');
+  // Plus de progrès : on laisse s'arrêter.
+  assert.equal(stop(true), null);
+  // Nouvel arrêt hors relance (après une réponse de l'utilisateur) : une relance de plus.
+  assert.equal(stop(false), 'block');
+  assert.equal(stop(true), null);
+});
+
+test('keep-running : awaiting_ci est un statut actif', () => {
+  const root = templateCopy();
+  runWithStatus(root, 'awaiting_ci');
+  assert.equal(runHook(root, 'keep-running.mjs', { session_id: 'session-1', stop_hook_active: false }).json?.decision, 'block');
 });
 
 test('guard-bash : pas de mention de co-auteur dans un message de commit', () => {
