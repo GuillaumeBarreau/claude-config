@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { checkState } from '../template/.claude/skills/team/scripts/check-state.mjs';
+import { checkState, planDigest } from '../template/.claude/skills/team/scripts/check-state.mjs';
 import { runChecks } from '../template/.claude/skills/team/scripts/run-checks.mjs';
 import { templateCopy, writeFile } from './helpers.mjs';
 
@@ -24,6 +24,7 @@ function setup(checks, { initialized = true } = {}) {
   state.branch = 'team/2026-10-18-exemple';
   state.gates.plan = { status: 'passed', by: 'user', at: null, notes: '' };
   state.tasks[0].status = 'in_progress';
+  state.planCheck = { status: 'passed', at: null, by: 'check-plan', digest: planDigest(state.tasks), errors: [] };
   state.checks = [];
   const runDir = join(root, '.agent-runs', state.id);
   writeFile(join(runDir, 'state.json'), JSON.stringify(state, null, 2));

@@ -36,9 +36,19 @@ Alternatives écartées en une ligne chacune.>
 
 ## Bloc des tâches
 
-Recopié par l'orchestrateur dans `state.json` (`tasks`). Valeurs possibles :
-`type` ∈ feature, bug, refactoring, test, documentation, infrastructure ;
-`priority` ∈ P0, P1, P2 ; `complexity` ∈ S, M, L.
+Recopié tel quel par l'orchestrateur dans `state.json` (`tasks`), puis vérifié par
+`scripts/check-plan.mjs` (seul le dernier bloc `json` de cette section compte).
+Valeurs possibles : `type` ∈ feature, bug, refactoring, test, documentation,
+infrastructure ; `priority` ∈ P0, P1, P2 ; `complexity` ∈ S, M, L.
+
+- `files` : fichiers **existants** que la tâche modifie ; `newFiles` : fichiers qu'elle
+  crée. Tests compris. Chemins relatifs à la racine du projet, sans `..`, sans glob,
+  sans `…` ni `<…>`.
+- Chaque `AC` de `spec.md` est cité par au moins une tâche ; aucune tâche ne cite un
+  `AC` inconnu.
+- Fichier sensible (dépendances, migrations, CI, authentification et permissions,
+  secrets, `.claude/`, motifs `sensitivePaths` de `team.json`) → `requiresHuman: true`.
+- `origin` : `plan` pour les tâches de ce bloc.
 
 ```json
 [
@@ -52,12 +62,15 @@ Recopié par l'orchestrateur dans `state.json` (`tasks`). Valeurs possibles :
     "acceptanceCriteria": ["AC1", "AC2"],
     "dependsOn": [],
     "files": ["src/…"],
+    "newFiles": [],
+    "origin": "plan",
     "agent": "implementer",
     "tests": ["…"],
     "risks": [],
     "requiresHuman": false,
     "status": "draft",
     "attempts": 0,
+    "consultations": 0,
     "validation": { "checks": "not_run", "review": null, "evidence": [] }
   }
 ]
