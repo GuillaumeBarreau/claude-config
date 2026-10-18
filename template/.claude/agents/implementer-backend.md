@@ -54,6 +54,17 @@ ce qu'un développeur back-end vérifie en plus.
 - Filtre ou trie sur une colonne sans index sur une table volumineuse : signale-le dans
   les points ouverts plutôt que d'ajouter une migration non prévue.
 - Pagination ou borne sur toute liste qui peut grandir.
+- Cache seulement avec le mécanisme existant du projet, et une invalidation claire.
+
+## Montée en charge et journalisation
+
+- Service **sans état** : pas de session ni de cache en mémoire locale qui casserait
+  avec plusieurs instances, sauf mécanisme prévu ; tâche longue en tâche de fond ou
+  file de messages plutôt que dans la requête ; délai d'expiration et nouvelles
+  tentatives bornées sur chaque appel externe.
+- Journalise avec le logger du projet (pas de `print`), au bon niveau, avec le contexte
+  utile (identifiant de requête, ressource) ; jamais de secret ni de donnée
+  personnelle ; une erreur inattendue est journalisée une fois, avec sa cause.
 
 ## Tests
 

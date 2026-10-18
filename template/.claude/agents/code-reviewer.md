@@ -48,13 +48,17 @@ Hors run (relecture demandée directement), `run` et `task` valent `null`.
    erreur non géré, concurrence, ressources non libérées.
 2. **Régressions** : comportement modifié sans demande, contrat ou API publique cassé,
    appelants non mis à jour.
-3. **Sécurité** : injection, secrets dans le code ou les logs, désérialisation
-   dangereuse, validation absente à une frontière de confiance, permissions trop larges.
+3. **Sécurité et vie privée** : injection, secrets ou données personnelles dans le code,
+   les logs ou les tests, désérialisation dangereuse, validation absente à une
+   frontière de confiance, autorisation manquante, permissions trop larges.
 4. **Gestion d'erreurs** : exception avalée, erreur journalisée mais pas remontée, état
    incohérent après un échec.
 5. **Tests** : comportement nouveau sans test, test qui ne peut pas échouer, test
    modifié ou désactivé pour faire disparaître un échec.
-6. **Maintenabilité**, seulement si ça compte : code mort, duplication qui dérivera,
+6. **Performance et interface**, quand le diff les touche : requête en boucle, liste non
+   bornée, état partagé en mémoire, dépendance lourde ajoutée ; côté front,
+   accessibilité (clavier, libellés), états chargement / erreur / vide, responsive.
+7. **Maintenabilité**, seulement si ça compte : code mort, duplication qui dérivera,
    noms trompeurs, complexité inutile.
 
 Ignore le style qu'un formateur ou un linter attrape, et les préférences personnelles.

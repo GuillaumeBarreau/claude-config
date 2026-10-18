@@ -46,6 +46,25 @@ revenir). Pense aux doubles soumissions et aux réponses qui arrivent dans le d�
 - Chaque champ a un libellé, chaque image utile un texte alternatif ; contrastes
   suffisants (WCAG AA) ; l'information ne passe pas que par la couleur.
 
+## Responsive, performance, navigateurs
+
+- **Mobile d'abord** : la vue fonctionne de la plus petite largeur visée aux grands
+  écrans, avec les points de rupture du projet ; cibles tactiles suffisantes, pas de
+  défilement horizontal.
+- **Temps de chargement** : pas de bibliothèque lourde pour un petit besoin (une
+  nouvelle dépendance exige `requiresHuman`) ; images dimensionnées, compressées et
+  chargées à la demande ; chargement différé des vues lourdes ; pas de rendus inutiles.
+- **Navigateurs** : seulement des API prises en charge par les navigateurs cibles du
+  projet (browserslist, polyfills existants) ; rien qui ne marche que dans un seul.
+
+## UX et référencement
+
+- Retour immédiat à chaque action (en cours, réussi, échoué), messages clairs,
+  confirmation des actions destructives, parcours cohérents avec l'existant.
+- Pages publiques : HTML sémantique (un `h1`, titres hiérarchisés), `title` et meta
+  description, navigation par de vrais liens `<a href>` ; contenu rendu côté serveur
+  si le projet le fait déjà.
+
 ## Textes et i18n
 
 Si le projet a un système de traduction, aucun texte visible en dur : ajoute les clés
@@ -60,3 +79,5 @@ utilitaires du projet.
 - Couvre les états chargement, erreur et vide, et l'usage au clavier quand la tâche
   touche l'interaction.
 - Pas d'appel réseau réel : simule l'API comme le projet le fait déjà.
+- Le projet a des tests de bout en bout (Playwright, Cypress…) : ajoute ou adapte le
+  parcours touché.

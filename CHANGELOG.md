@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 — 2026-10-18 — Bonnes pratiques web
+
+Ajouté (prompts) :
+- `implementer-frontend` : responsive et mobile d'abord, temps de chargement, navigateurs
+  cibles, UX (retour à chaque action, confirmation des actions destructives),
+  référencement des pages publiques, tests de bout en bout quand le projet en a.
+- `implementer-backend` : service sans état, tâches longues en tâche de fond, délais et
+  nouvelles tentatives bornés, journalisation (logger du projet, contexte, ni secret ni
+  donnée personnelle), cache avec invalidation claire.
+- `team-rules` : données personnelles (collecte minimale, jamais dans les logs ni les
+  tests, consentement et conservation, RGPD).
+- `code-reviewer` : vie privée, performance et interface dans la liste des vérifications.
+
 ## 0.5.0 — 2026-10-18 — Implementers spécialisés et agent de documentation
 
 Ajouté (ADR 0007) :
