@@ -11,6 +11,7 @@
     "validate": "node validate.mjs template",
     "test": "node --test \"tests/*.test.mjs\"",
     "check": "node validate.mjs template && node --test \"tests/*.test.mjs\"",
-    "bench": "node bench/run.mjs"
+    "bench": "node bench/run.mjs",
+    "dogfood": "node install.mjs . --ignore-claude"
   }
 }

@@ -20,6 +20,16 @@ modifie ici le **template**, jamais une copie installée.
 - `install.mjs`, `validate.mjs` : Node sans dépendance, multiplateforme (Windows
   compris). Pas de bash ni de Python.
 - `docs/decisions/` : une décision structurante = un ADR.
+- `.claude/` à la racine est une **copie installée** de `template/.claude/` (le dépôt
+  utilise sa propre équipe d'agents). Ignorée par Git, jamais modifiée à la main :
+  on modifie `template/.claude/`, puis `npm run dogfood` pour régénérer la copie.
+  Son `team.json` (réglages locaux) est conservé d'une installation à l'autre.
+
+## Travailler dans ce dépôt
+
+Avec la copie installée, les garde-fous de l'équipe s'appliquent ici aussi : jamais
+de commit sur `main`. Chaque évolution se fait sur une branche `team/…` (avec
+`/team` de préférence) et se livre par une PR.
 
 ## Avant de commiter
 

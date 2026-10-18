@@ -1,5 +1,12 @@
 # Changelog
 
+## Non publié
+
+Ajouté (dépôt) :
+- Le dépôt utilise sa propre équipe d'agents : `npm run dogfood` installe
+  `template/.claude/` dans `.claude/` (copie ignorée par Git, régénérée après chaque
+  changement du template). Les évolutions passent par des branches `team/…` et des PR.
+
 ## 0.6.0 — 2026-10-18 — Agent expert et .gitignore à l'installation
 
 Ajouté :
