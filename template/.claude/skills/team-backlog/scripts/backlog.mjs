@@ -19,8 +19,13 @@
 // Push et PR brouillon seulement si backlog.draftPr vaut true (défaut false) ET run
 // prêt (contrôles et relecture validés, tâches done, aucune requiresHuman).
 // Rapport : .agent-runs/backlog/<horodatage>.json.
+// Avant tout appel gh : baseBranch doit respecter [A-Za-z0-9][A-Za-z0-9._/-]*, puis
+// .claude/team.json doit exister et être initialisé sur origin/<base> (git show). En
+// --yes, git fetch origin <base> le précède ; en --dry-run, pas de fetch : la référence
+// locale origin/<base> est lue telle quelle.
 // Sortie : 0 ; 1 si une issue a échoué en cours de traitement ; 2 refus ou erreur de
-// configuration (CLAUDECODE, team.json, gh indisponible, arguments).
+// configuration (CLAUDECODE, team.json local ou sur origin/<base>, baseBranch, gh
+// indisponible, arguments).
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -70,6 +75,38 @@ export function backlogConfig(team) {
 }
 
 const CLEARED_CHECKS = ['passed', 'n/a'];
+const BASE_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+/**
+ * Pré-contrôle : le run part de origin/<base>, qui doit porter un team.json initialisé.
+ * baseBranch est validée avant tout appel git (jamais une option). En mode réel, git fetch
+ * met origin/<base> à jour ; en simulation, la référence locale est lue telle quelle.
+ * @returns {string|null} cause du refus, ou null
+ */
+function remoteTeamProblem({ exec, config, projectDir, fetch }) {
+  const base = config.baseBranch;
+  if (!BASE_BRANCH_PATTERN.test(base)) {
+    return `baseBranch « ${flat(base, 100)} » invalide dans .claude/team.json (attendu : ${BASE_BRANCH_PATTERN.source})`;
+  }
+  if (fetch) {
+    const res = exec('git', ['fetch', 'origin', base], { cwd: projectDir });
+    if (res.status !== 0) return `git fetch origin ${base} impossible — ${flat(res.stderr || `code ${res.status}`, 300)}`;
+  }
+  const show = exec('git', ['show', `origin/${base}:.claude/team.json`], { cwd: projectDir });
+  if (show.status !== 0) {
+    return `.claude/team.json absent de origin/${base} : commite et pousse un team.json initialisé (/team-init)${fetch ? '' : ' (référence locale, sans git fetch)'}`;
+  }
+  let remote;
+  try {
+    remote = JSON.parse(String(show.stdout ?? '').replace(/^﻿/, ''));
+  } catch (err) {
+    return `.claude/team.json illisible sur origin/${base} — ${flat(err.message, 200)}`;
+  }
+  if (remote?.initialized !== true) {
+    return `.claude/team.json non initialisé sur origin/${base} : lance /team-init, commite et pousse`;
+  }
+  return null;
+}
 
 /**
  * Branche poussable ? state.branch est écrit par le modèle (influencé par l'issue) et
@@ -268,6 +305,12 @@ export function runBacklog({ argv, exec = defaultExec, env = process.env, projec
   const config = backlogConfig(team);
   const limit = Math.min(args.limit ?? config.maxIssues, config.maxIssues);
   const gh = (ghArgs, opts = {}) => exec('gh', ghArgs, { cwd: projectDir, ...opts });
+
+  const remoteProblem = remoteTeamProblem({ exec, config, projectDir, fetch: args.yes });
+  if (remoteProblem) {
+    warn(`erreur : ${remoteProblem}`);
+    return { code: 2, report: null };
+  }
 
   const repoRes = gh(['repo', 'view', '--json', 'name,nameWithOwner']);
   let repo;

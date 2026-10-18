@@ -149,7 +149,7 @@ const ISSUES = [
 /** Appel qui modifie quelque chose (GitHub, dépôt, ou lance claude). */
 function isMutating({ cmd, args }) {
   if (cmd === 'claude') return true;
-  if (cmd === 'git') return !['rev-parse', 'status', 'log'].includes(args[0]);
+  if (cmd === 'git') return !['rev-parse', 'status', 'log', 'show'].includes(args[0]);
   if (cmd !== 'gh') return true;
   if (args[0] === 'api') return args.some((a) => /^(-X|--method|-f|-F|--field|--raw-field|--input)$/.test(a));
   if (args[0] === 'repo' && args[1] === 'view') return false;
@@ -159,7 +159,10 @@ function isMutating({ cmd, args }) {
 /**
  * @param runState state.json que « claude » écrit dans le worktree (null : aucun run)
  */
-function fakeExec({ runState = readyState(), issues = ISSUES, missingBranch = false } = {}) {
+function fakeExec({
+  runState = readyState(), issues = ISSUES, missingBranch = false,
+  remoteTeam = { initialized: true, baseBranch: 'main' }, fetchFails = false,
+} = {}) {
   const calls = [];
   const exec = (cmd, args, opts = {}) => {
     calls.push({ cmd, args, opts });
@@ -169,6 +172,12 @@ function fakeExec({ runState = readyState(), issues = ISSUES, missingBranch = fa
     if (line.startsWith('gh api')) {
       const n = Number(line.match(/issues\/(\d+)/)[1]);
       return { status: 0, stdout: JSON.stringify(issues.find((i) => i.number === n)) };
+    }
+    if (line.startsWith('git fetch') && fetchFails) return { status: 128, stdout: '', stderr: 'fatal: unable to access origin' };
+    if (line.startsWith('git show')) {
+      // remoteTeam : objet ou texte = contenu de .claude/team.json sur origin/<base> ; null = fichier absent
+      if (remoteTeam === null) return { status: 128, stdout: '', stderr: 'fatal: path ".claude/team.json" does not exist' };
+      return { status: 0, stdout: typeof remoteTeam === 'string' ? remoteTeam : JSON.stringify(remoteTeam) };
     }
     if (line.startsWith('git worktree add')) {
       const wt = args[3];
@@ -319,7 +328,10 @@ test('mode réel : worktree déjà présent → issue ignorée sans toucher aux 
   const { exec, calls } = fakeExec();
   const result = runBacklog({ argv: ['--yes', '--issue', '7'], exec, env: {}, projectDir: root, tmpRoot });
   assert.equal(result.report.issues[0].outcome, 'skipped');
-  assert.ok(!calls.some(isMutating));
+  // Seul git fetch origin main du pré-contrôle (mode réel) est attendu ; rien d'autre ne modifie.
+  const isPrecheckFetch = ({ cmd, args }) => cmd === 'git' && args.join(' ') === 'fetch origin main';
+  assert.equal(calls.filter(isPrecheckFetch).length, 1);
+  assert.ok(!calls.filter((c) => !isPrecheckFetch(c)).some(isMutating));
 
   const none = fakeExec({ runState: null });
   const r2 = runBacklog({ argv: ['--yes', '--issue', '7'], exec: none.exec, env: {}, projectDir: root, tmpRoot: tempDir() });
@@ -336,4 +348,96 @@ test('mode réel : branche absente du worktree → agent-blocked, aucun push ni 
   assert.equal(result.report.issues[0].outcome, 'blocked');
   assert.match(result.report.issues[0].reason, /branche/);
   assert.ok(lines.some((l) => /--add-label agent-blocked/.test(l)));
+});
+
+// --- Pré-contrôle de team.json sur origin/<base> (AC2) -----------------------
+
+const gitLines = (calls) => callLines(calls).filter((l) => l.startsWith('git '));
+const withoutWrites = (calls) => callLines(calls).filter((l) => /^gh issue (edit|comment)|^git (worktree|fetch)|^claude/.test(l));
+
+test('pré-contrôle --dry-run : team.json absent de origin/<base> → code 2 avant tout appel gh, sans git fetch', () => {
+  const root = project();
+  const { exec, calls } = fakeExec({ remoteTeam: null });
+  const warnings = [];
+  const result = runBacklog({ argv: ['--dry-run'], exec, env: {}, projectDir: root, tmpRoot: tempDir(), warn: (m) => warnings.push(m) });
+  assert.equal(result.code, 2);
+  assert.match(warnings.join('\n'), /team\.json absent de origin\/main/);
+  assert.match(warnings.join('\n'), /référence locale, sans git fetch/);
+  assert.deepEqual(withoutWrites(calls), []);
+  assert.ok(!calls.some((c) => c.cmd === 'gh'), 'aucun appel gh avant le pré-contrôle');
+  assert.deepEqual(gitLines(calls), ['git show origin/main:.claude/team.json']);
+});
+
+test('pré-contrôle --dry-run : team.json initialisé sur origin/<base> → simulation normale, git show sans git fetch', () => {
+  const root = project();
+  const { exec, calls } = fakeExec();
+  const result = runBacklog({ argv: ['--dry-run'], exec, env: {}, projectDir: root, tmpRoot: tempDir() });
+  assert.equal(result.code, 0);
+  assert.deepEqual(gitLines(calls), ['git show origin/main:.claude/team.json']);
+  assert.deepEqual(calls.filter(isMutating), []);
+});
+
+test('pré-contrôle --yes : team.json non initialisé sur origin/<base> → code 2, git fetch avant git show, aucune écriture', () => {
+  const root = project();
+  const { exec, calls } = fakeExec({ remoteTeam: { initialized: false } });
+  const warnings = [];
+  const result = runBacklog({ argv: ['--yes'], exec, env: {}, projectDir: root, tmpRoot: tempDir(), warn: (m) => warnings.push(m) });
+  assert.equal(result.code, 2);
+  assert.match(warnings.join('\n'), /non initialisé sur origin\/main/);
+  assert.deepEqual(gitLines(calls), ['git fetch origin main', 'git show origin/main:.claude/team.json']);
+  assert.deepEqual(callLines(calls).filter((l) => /^gh issue|^git worktree|^claude/.test(l)), []);
+  assert.ok(!calls.some((c) => c.cmd === 'gh'));
+});
+
+test('pré-contrôle --yes : team.json illisible sur origin/<base> → code 2 « illisible »', () => {
+  const root = project();
+  const { exec, calls } = fakeExec({ remoteTeam: '{ pas du json' });
+  const warnings = [];
+  const result = runBacklog({ argv: ['--yes'], exec, env: {}, projectDir: root, tmpRoot: tempDir(), warn: (m) => warnings.push(m) });
+  assert.equal(result.code, 2);
+  assert.match(warnings.join('\n'), /team\.json illisible sur origin\/main/);
+  assert.ok(!calls.some((c) => c.cmd === 'gh' || c.cmd === 'claude'));
+});
+
+test('pré-contrôle --yes : git fetch en échec → code 2, ni git show ni gh', () => {
+  const root = project();
+  const { exec, calls } = fakeExec({ fetchFails: true });
+  const warnings = [];
+  const result = runBacklog({ argv: ['--yes'], exec, env: {}, projectDir: root, tmpRoot: tempDir(), warn: (m) => warnings.push(m) });
+  assert.equal(result.code, 2);
+  assert.match(warnings.join('\n'), /git fetch origin main impossible/);
+  assert.deepEqual(gitLines(calls), ['git fetch origin main']);
+  assert.ok(!calls.some((c) => c.cmd === 'gh' || c.cmd === 'claude'));
+});
+
+test('pré-contrôle --yes : succès → git fetch puis git show avant le premier gh qui modifie', () => {
+  const root = project();
+  const { exec, calls } = fakeExec();
+  const result = runBacklog({ argv: ['--yes', '--issue', '7'], exec, env: {}, projectDir: root, tmpRoot: tempDir() });
+  assert.equal(result.code, 0);
+  const lines = callLines(calls);
+  const fetch = lines.indexOf('git fetch origin main');
+  const show = lines.indexOf('git show origin/main:.claude/team.json');
+  const edit = lines.findIndex((l) => l.startsWith('gh issue edit'));
+  assert.ok(fetch >= 0 && fetch < show && show < edit, lines.join('\n'));
+  assert.ok(lines.indexOf('gh repo view --json name,nameWithOwner') > show, 'le pré-contrôle précède le premier appel gh');
+});
+
+test('pré-contrôle : baseBranch hostile dans le team.json local → code 2, aucun appel git', () => {
+  for (const baseBranch of ['--upload-pack=x', '-x', '/main', 'main branch', 'a;b', '']) {
+    for (const argv of [['--dry-run'], ['--yes']]) {
+      const root = project({ team: { baseBranch } });
+      const { exec, calls } = fakeExec();
+      const warnings = [];
+      const result = runBacklog({ argv, exec, env: {}, projectDir: root, tmpRoot: tempDir(), warn: (m) => warnings.push(m) });
+      // '' retombe sur « main » par défaut (backlogConfig) : seul ce cas passe le contrôle
+      if (baseBranch === '') {
+        assert.equal(result.code, 0);
+        continue;
+      }
+      assert.equal(result.code, 2, `${baseBranch} ${argv}`);
+      assert.match(warnings.join('\n'), /baseBranch/);
+      assert.deepEqual(calls, [], `${baseBranch} ${argv}`);
+    }
+  }
 });

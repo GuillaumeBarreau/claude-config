@@ -17,11 +17,18 @@ node .claude/skills/team-backlog/scripts/backlog.mjs --dry-run $ARGUMENTS
 ```
 
 Arguments acceptés : `--limit N`, `--issue n`. Le script ne fait que des lectures
-`gh` (`gh repo view`, `gh api` en GET) et écrit un rapport dans
+(`git show`, `gh repo view`, `gh api` en GET, sans `git fetch`) et écrit un rapport dans
 `.agent-runs/backlog/<horodatage>.json`.
 
-Sortie 2 : `team.json` non initialisé (lancer `/team-init`), `gh` absent ou non
-authentifié (`gh auth status`), argument invalide. Rapporte l'erreur telle quelle.
+Avant tout appel `gh`, il vérifie que `.claude/team.json` existe et est initialisé sur
+`origin/<baseBranch>` (c'est de là que partent les runs), et que `baseBranch` est un
+nom de branche valide. En simulation, il lit la référence locale `origin/<baseBranch>`,
+peut-être périmée : le mode réel fait d'abord `git fetch origin <baseBranch>`.
+
+Sortie 2 : `team.json` local non initialisé (lancer `/team-init`), `team.json` absent,
+illisible ou non initialisé sur `origin/<baseBranch>` (le commiter et le pousser),
+`baseBranch` invalide, `gh` absent ou non authentifié (`gh auth status`), argument
+invalide. Rapporte l'erreur telle quelle.
 
 ## 2. Présenter
 
