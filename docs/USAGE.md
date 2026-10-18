@@ -10,7 +10,7 @@ node <claude-config>/install.mjs <projet>
 | Message de l'installeur | Signification                                                   |
 | ----------------------- | --------------------------------------------------------------- |
 | ajouté / mis à jour     | Fichier du template copié dans le projet                         |
-| conservé (appartient au projet) | `team.json` : jamais remplacé, même avec `--force`       |
+| conservé (appartient au projet) | `team.json`, `skills/conventions-backend/`, `skills/conventions-frontend/` : créés à la première installation, jamais remplacés ni supprimés, même avec `--force` |
 | CONFLIT                 | Fichier modifié dans le projet (ou fichier du projet de même nom) : non remplacé. Compare avec `template/.claude/`, reporte ta modification dans le template si elle vaut pour tous les projets, puis `--force` |
 | écrasé (--force)        | Conflit remplacé par la version du template (sans sauvegarde)    |
 | non recréé              | Fichier supprimé volontairement dans le projet ; `--force` le restaure |
@@ -36,6 +36,15 @@ Découvre la branche de base, la convention de commit et les commandes de contr�
 priorité celles de la CI), te les présente, propose de les exécuter une fois, puis les
 enregistre dans `.claude/team.json` après ton accord.
 
+Il propose aussi les **conventions des implementers spécialisés** : en lisant le code,
+il rédige `.claude/skills/conventions-backend/SKILL.md` et
+`.claude/skills/conventions-frontend/SKILL.md` (framework, arborescence, commandes,
+style, approche de test, fichiers modèles à imiter) et te les fait valider. Si le
+projet n'a pas de back ou de front, il propose de désactiver le spécialiste
+correspondant (`agents.implementer-backend: false`…) : ses tâches iront à
+`implementer`. Ces deux skills appartiennent au projet : modifie-les librement,
+une mise à jour de l'équipe ne les remplace jamais.
+
 ## Lancer une demande : `/team <demande>`
 
 ```
@@ -53,10 +62,11 @@ enregistre dans `.claude/team.json` après ton accord.
    modifications. En mode `autonomous`, l'orchestrateur valide seul les plans sans
    tâche sensible et t'affiche le résumé.
 4. **Exécution**, sans interruption : l'arbre de travail doit être propre ; une branche
-   `team/<id>` est créée depuis la branche de base. Pour chaque tâche, `implementer`
-   code et teste, `check-scope` compare les fichiers modifiés au plan, `run-checks`
+   `team/<id>` est créée depuis la branche de base. Pour chaque tâche, son développeur
+   (`implementer` par défaut, `implementer-backend`, `implementer-frontend` ou
+   `documentation`, choisi par le planner) code et teste, `check-scope` compare les fichiers modifiés au plan, `run-checks`
    lance les contrôles, `code-reviewer` relit, puis l'orchestrateur commite la tâche.
-   Une question technique de l'implementer est tranchée par le planner, sans te
+   Une question technique d'un développeur est tranchée par le planner, sans te
    déranger. En cas d'échec : correction sur un modèle plus fort (`escalationModel`),
    puis redécoupage de la tâche, puis le run se bloque et te rend la main.
 5. **Porte 4** : contrôles finaux, puis `pr.md` rédigé selon les
@@ -151,8 +161,8 @@ Dans `.claude/team.json` du projet :
 | `branchPrefix`           | Préfixe des branches de travail (`team/`)                |
 | `maxAttempts`            | Tours de correction avant blocage (2)                    |
 | `maxClarificationRounds` | Tours de questions avant blocage (2)                     |
-| `agents`                 | Activer ou désactiver un agent (`false` = jamais lancé)  |
-| `escalationModel`        | Modèle de l'implementer pour la correction (`opus`)      |
+| `agents`                 | Activer ou désactiver un agent (`false` = jamais lancé ; `check-plan` refuse une tâche confiée à un développeur désactivé) |
+| `escalationModel`        | Modèle des développeurs pour la correction (`opus`)      |
 | `sensitivePaths`         | Motifs glob ajoutés aux zones sensibles (jamais retirés)  |
 | `ci`                     | `enabled`, `timeoutMinutes`, `maxFixRounds` (tours de correction de CI) |
 | `prComments`             | `allowedAssociations` : auteurs dont les commentaires sont traités |

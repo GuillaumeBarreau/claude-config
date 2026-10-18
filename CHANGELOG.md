@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.5.0 — 2026-10-18 — Implementers spécialisés et agent de documentation
+
+Ajouté (ADR 0007) :
+- Agents `implementer-backend` et `implementer-frontend` (Sonnet, effort high) :
+  prompts orientés domaine (back : contrats, validation à la frontière, données et
+  migrations, transactions, erreurs, injection et autorisation, N+1, tests
+  d'intégration ; front : composants et état, états chargement/erreur/vide,
+  accessibilité, design system, i18n, tests de comportement, pas de logique métier
+  côté client).
+- Agent `documentation` (Sonnet, effort medium) : tâches de type `documentation`
+  (README, docs/, CHANGELOG, ADR, commentaires d'API) d'après le diff ; n'écrit que de
+  la documentation, même livrable que l'implementer.
+- Skill `team-implementer` : procédure commune des développeurs, extraite
+  d'`implementer` et préchargée par les trois implementers.
+- Skills `conventions-backend` et `conventions-frontend`, propres au projet :
+  créées à l'installation, jamais remplacées ni supprimées (même `--force`),
+  rédigées par `/team-init` en lisant le code.
+- Routage : le planner remplit `agent` de chaque tâche (règle dans
+  `templates/plan.md`) et prévoit une tâche de documentation quand le changement
+  touche un comportement visible, une API ou la configuration ; l'orchestrateur lance
+  `task.agent` (défaut `implementer`).
+
+Modifié :
+- `implementer` reste l'agent par défaut (tâches mixtes, projets sans séparation) ;
+  son corps ne garde que son rôle.
+- `check-plan` : erreur si `agent` n'est pas un développeur connu ou s'il est
+  désactivé dans `team.json` ; `agent` doit être recopié fidèlement de `plan.md`.
+  L'empreinte du plan couvre l'agent quand il n'est pas `implementer` (les runs
+  existants gardent leur empreinte).
+- `guard-files` : le refus d'écrire dans `.claude/` et `.agent-runs/` vaut pour les
+  quatre développeurs.
+- `check-deliverable`, `record-metrics`, `deliverable.mjs`, `metrics.mjs` et le
+  matcher `SubagentStop` reconnaissent les nouveaux agents (liste unique
+  `DEVELOPERS`). `metrics.mjs` compte les appels de tous les développeurs par tâche.
+- `team.json` : les trois nouveaux agents activés. `/team-init` propose les
+  conventions et désactive un spécialiste sans objet.
+
+Pas fait :
+- Planner non séparé en PO et architecte (ADR 0007).
+- Aucun run réel avec les spécialistes ; le banc n'a pas de scénario dédié.
+- La cohérence entre l'agent choisi et les fichiers de la tâche (back, front) n'est
+  pas vérifiée par script : seul l'agent (connu, activé) l'est.
+
 ## 0.4.0 — 2026-10-18 — Issues réalisées une par une
 
 Ajouté :

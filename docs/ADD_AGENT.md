@@ -36,6 +36,14 @@ consigne dans le workflow, une skill, ou rien.
    `hooks/team/record-metrics.mjs`. Sans schéma, le hook `check-deliverable` ne le
    contrôle pas et ses appels ne sont pas mesurés.
 3. Déclare-le dans `template/.claude/team.json` (`agents`).
+   **Agent développeur** (réalise une tâche du plan, comme `implementer-backend`) :
+   ajoute-le à `DEVELOPERS` dans `deliverable.mjs` (schéma implementer, mesures,
+   `check-plan`) et à `GUARDED_AGENTS` dans `hooks/team/guard-files.mjs` (refus
+   d'écrire dans `.claude/` et `.agent-runs/` ; un test vérifie que les deux listes
+   concordent), précharge `team-rules` et `team-implementer` (procédure commune, à ne
+   pas recopier), et ajoute sa ligne à la règle « Routage des tâches » de
+   `skills/team/templates/plan.md`. Des conventions propres au projet vont dans une
+   skill ajoutée à `PROJECT_OWNED` (`install.mjs`), avec un test d'installation.
 4. Branche-le dans `skills/team/workflow.md` : l'étape, ses entrées, son livrable, ses
    conditions de réussite et de blocage.
 5. `npm run check`, puis ajoute une entrée au `CHANGELOG.md`.

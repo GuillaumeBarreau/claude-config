@@ -6,7 +6,7 @@ vérifié, exécute les tâches une à une (code, périmètre, contrôles, relec
 prépare une PR, puis suit la CI et les commentaires de relecture. **Push, PR et fusion
 restent humains.**
 
-> État : **v0.3**. Tout ce qui est décrit ici est implémenté et couvert par des tests
+> État : **v0.5**. Tout ce qui est décrit ici est implémenté et couvert par des tests
 > unitaires (hooks lancés avec leurs vrais payloads, `gh` et `claude` simulés). Rien
 > n'a encore été éprouvé sur un run réel complet : c'est le rôle du
 > [banc d'essai](bench/README.md). Voir le [CHANGELOG](CHANGELOG.md).
@@ -17,15 +17,26 @@ restent humains.**
 | ---------------------------- | -------------------------------------- | ----------------------------- |
 | Orchestrateur / tech lead    | Skill `/team`, dans ta session         | État du run, commits, synthèse|
 | `planner` (PO + architecte)  | Sous-agent, lecture seule, Opus        | Spécification, plan, consultations, redécoupages |
-| `implementer` (développeur)  | Sous-agent, Sonnet (Opus en escalade)  | Code et tests d'une tâche     |
+| `implementer` (développeur, par défaut) | Sous-agent, Sonnet (Opus en escalade) | Code et tests d'une tâche mixte ou sans spécialiste |
+| `implementer-backend`        | Sous-agent, Sonnet (Opus en escalade)  | Code et tests d'une tâche côté serveur (API, données, sécurité) |
+| `implementer-frontend`       | Sous-agent, Sonnet (Opus en escalade)  | Code et tests d'une tâche côté interface (composants, accessibilité, états) |
+| `documentation`              | Sous-agent, Sonnet                     | README, docs/, CHANGELOG, ADR d'après le diff |
 | `code-reviewer` (relecture + QA) | Sous-agent, lecture seule, Opus    | Verdict et constats           |
+
+Le planner attribue chaque tâche à un développeur selon ses fichiers (tout back,
+tout front, documentation seule, sinon `implementer`) ; `check-plan` refuse un agent
+inconnu ou désactivé dans `team.json`. Les trois implementers partagent une procédure
+commune (skill `team-implementer`) ; les spécialistes préchargent en plus les
+conventions **propres au projet** (`conventions-backend`, `conventions-frontend`),
+générées par `/team-init` en lisant le code et jamais écrasées par une mise à jour.
+Un spécialiste se désactive dans `team.json` (`agents`) si le projet n'a pas ce côté.
 
 Chaque agent termine par un **livrable JSON** vérifié par un hook : l'orchestrateur et
 les autres agents le lisent tel quel, sans reformulation.
 
 ```
 /team <demande> → planner (spec + plan) → check-plan → porte 1
-  → pour chaque tâche : implementer → check-scope → run-checks → code-reviewer → commit
+  → pour chaque tâche : développeur de la tâche → check-scope → run-checks → code-reviewer → commit
       question technique → planner (consultation) ; question produit → toi
       échec → correction sur un modèle plus fort, puis redécoupage, puis blocage
   → run-checks final → pr.md vérifié par check-pr → porte 4 (push / PR brouillon avec ton accord)
@@ -64,7 +75,7 @@ Des hooks Node (Windows compris), fusionnés dans le `.claude/settings.json` du 
 | Hook                | Effet |
 | ------------------- | ----- |
 | `guard-bash`        | Refuse commit ou push sur la branche de base, fusion de PR, `Co-Authored-By`, `--no-verify`, lecture de `.env`, `rm -rf` massif. Demande ton accord pour push, PR, publication, actions destructives, nouvelle dépendance, écriture sur GitHub |
-| `guard-files`       | Refuse les fichiers de secrets. L'implementer n'écrit ni dans `.claude/` ni dans `.agent-runs/`. Demande ton accord pour modifier les garde-fous |
+| `guard-files`       | Refuse les fichiers de secrets. Les développeurs (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`) n'écrivent ni dans `.claude/` ni dans `.agent-runs/`. Demande ton accord pour modifier les garde-fous |
 | `check-run-state`   | Vérifie chaque `state.json` écrit : un état qui contourne une porte revient au modèle |
 | `check-deliverable` | Renvoie un agent au travail si son livrable JSON manque ou est invalide |
 | `record-metrics`    | Mesures par run (appels, durée, outils, rejets) |
