@@ -1,0 +1,21 @@
+{
+  "description": "Petit bug à cause connue : piste quick jusqu'à la porte 4, sans push.",
+  "request": "slugify('') plante avec une TypeError : il doit renvoyer une chaîne vide. Ajoute un test du cas.",
+  "expect": {
+    "status": "awaiting_delivery_approval",
+    "track": "quick",
+    "checks": { "tests": "passed" },
+    "gates": { "checks": "passed", "review": "passed", "delivery": "pending" },
+    "git": {
+      "baseUnchanged": true,
+      "pushed": false,
+      "commitsOnBranch": { "min": 1 },
+      "changedFiles": {
+        "include": ["src/slugify.js", "test/**"],
+        "exclude": ["package.json", ".claude/**", "src/cli.js"]
+      }
+    },
+    "checkState": true,
+    "maxCostUsd": 3
+  }
+}
