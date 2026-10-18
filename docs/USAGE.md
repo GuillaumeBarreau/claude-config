@@ -133,10 +133,25 @@ Relancer les contrôles d'un run :
 
 ## Traiter les issues une par une : `/team-next`
 
-`/team-next` prend la plus ancienne issue GitHub marquée `agent-ready` (auteur
-OWNER, MEMBER ou COLLABORATOR, sans run local en cours ni PR ouverte qui la ferme) et
-la réalise avec le workflow `/team`. `/team-next --issue 42` vise une issue précise.
-Il répond « Plus aucune issue prête » quand il n'y a plus rien à faire.
+`/team-next` prend l'issue GitHub marquée `agent-ready` la plus prioritaire, **prête** et
+**débloquée** (auteur OWNER, MEMBER ou COLLABORATOR, sans run local en cours ni PR
+ouverte qui la ferme) et la réalise avec le workflow `/team`. `/team-next --issue 42`
+vise une issue précise. Il répond « Plus aucune issue prête » quand il n'y a plus rien à
+faire.
+
+- **Prête** : trois rubriques en titres Markdown non vides (Objectif, Comportement
+  attendu ou critères, Hors périmètre). Sinon l'issue est écartée avec « issue non
+  prête : <rubriques manquantes> ». `/team-init` propose un modèle d'issue qui les
+  contient.
+- **Priorité** : labels `P0`, `P1`, `P2` (réglables : `backlog.priorityLabels`), puis la
+  plus ancienne ; sans label de priorité, en dernier.
+- **Débloquée** : une ligne « Dépend de #12 » dans le corps écarte l'issue tant que #12
+  est ouverte (ou si les issues s'attendent en cycle) ; #12 fermée, elle redevient
+  éligible. Une référence illisible ou une dépendance introuvable ne bloque pas : elle
+  donne un avertissement.
+
+Seules les 50 issues les plus anciennes portant le label sont lues. Détail des règles :
+[BACKLOG.md](BACKLOG.md).
 
 Pour vider le backlog dans ta session, enchaîne avec `/goal` :
 
@@ -175,7 +190,7 @@ Dans `.claude/team.json` du projet :
 | `ci`                     | `enabled`, `timeoutMinutes`, `maxFixRounds` (tours de correction de CI) |
 | `prComments`             | `allowedAssociations` : auteurs dont les commentaires sont traités |
 | `lessons`                | `enabled`, `maxEntries` (30) |
-| `backlog`                | `label` (`agent-ready`), `draftPr` (`false`), `maxIssues`, `maxBudgetUsd` |
+| `backlog`                | `label` (`agent-ready`), `priorityLabels` (`["P0","P1","P2"]`, du plus haut au plus bas), `draftPr` (`false`), `maxIssues`, `maxBudgetUsd` |
 
 ## Modifier les règles ou ajouter un agent
 

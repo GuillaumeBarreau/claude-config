@@ -11,16 +11,31 @@
 // --dry-run : liste ce qui serait fait. Seulement des lectures gh (repo view, api GET).
 // --yes     : mode réel (coûte des appels API) ; refusé si CLAUDECODE est défini.
 //
-// Pour chaque issue ouverte portant backlog.label (défaut agent-ready), sans
-// agent-working, créée par un auteur autorisé (prComments.allowedAssociations) :
+// Issues lues par ordre d'ancienneté (sort=created&direction=asc, 50 au plus). Retenues :
+// ouvertes, portant backlog.label (défaut agent-ready), sans agent-working, créées par un
+// auteur autorisé (prComments.allowedAssociations), prêtes (trois rubriques du modèle
+// d'issue) et débloquées (aucune « Dépend de #n » ouverte, pas de cycle), dans l'ordre de
+// next-issue.mjs (orderIssues : backlog.priorityLabels, puis ancienneté), jusqu'à la limite.
+// Écartées avec leur raison dans report.skipped. Dépendances lues par gh api GET (20 au
+// plus) ; avertissements (dépendance inconnue ou illisible) dans report.warnings, bornés
+// comme next-issue.mjs (5 par issue, 20 au total, report.warningsOmitted).
+// --yes, issue non prête : commentaire fait de constantes (rubriques manquantes, marche à
+// suivre), agent-needs-info à la place du label, outcome not_ready ; hors limite, ni
+// git fetch, ni worktree, ni claude. Dépendance ouverte ou cycle : aucune écriture.
+// Pour chaque issue retenue :
 //   label agent-working → git worktree add --detach <tmp>/claude-backlog/<repo>-<n>
 //   origin/<base> → claude -p "/team Issue #n : <titre>…" (texte par stdin) → lecture
 //   du state.json → décision (decideOutcome) → commentaire et label de résultat.
 // Push et PR brouillon seulement si backlog.draftPr vaut true (défaut false) ET run
 // prêt (contrôles et relecture validés, tâches done, aucune requiresHuman).
 // Rapport : .agent-runs/backlog/<horodatage>.json.
+// Avant tout appel gh : baseBranch doit respecter [A-Za-z0-9][A-Za-z0-9._/-]*, puis
+// .claude/team.json doit exister et être initialisé sur origin/<base> (git show). En
+// --yes, git fetch origin <base> le précède ; en --dry-run, pas de fetch : la référence
+// locale origin/<base> est lue telle quelle.
 // Sortie : 0 ; 1 si une issue a échoué en cours de traitement ; 2 refus ou erreur de
-// configuration (CLAUDECODE, team.json, gh indisponible, arguments).
+// configuration (CLAUDECODE, team.json local ou sur origin/<base>, baseBranch, gh
+// indisponible, arguments).
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -29,11 +44,17 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { checkState } from '../../team/scripts/check-state.mjs';
+import {
+  DEFAULT_PRIORITY_LABELS, MAX_BODY, orderIssues, READY_SECTIONS, resolveDependencyStates, retainedBody,
+} from './issue-queue.mjs';
+
+export { MAX_BODY };
 
 const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-export const MAX_BODY = 4000;
 const MAX_TITLE = 200;
 const MAX_QUESTIONS = 10;
+const MAX_WARNINGS_PER_ISSUE = 5;
+const MAX_WARNINGS = 20;
 const CLAUDE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const MAX_TURNS = 300;
 export const DEFAULTS = { label: 'agent-ready', draftPr: false, maxIssues: 3, maxBudgetUsd: 5 };
@@ -54,6 +75,13 @@ const LABEL_DESCRIPTIONS = {
   [LABELS.blocked]: ['b60205', 'Run /team bloqué'],
 };
 
+/** Labels de priorité valides (liste non vide de textes non vides, sans doublon), espaces retirées ; sinon null. */
+function validPriorityLabels(value) {
+  if (!Array.isArray(value) || !value.length || !value.every((l) => typeof l === 'string' && l.trim())) return null;
+  const labels = value.map((l) => l.trim());
+  return new Set(labels).size === labels.length ? labels : null;
+}
+
 /** Clés backlog de team.json, avec les valeurs par défaut. */
 export function backlogConfig(team) {
   const b = team?.backlog ?? {};
@@ -64,12 +92,45 @@ export function backlogConfig(team) {
     maxIssues: Number.isInteger(b.maxIssues) && b.maxIssues > 0 ? b.maxIssues : DEFAULTS.maxIssues,
     maxBudgetUsd: typeof b.maxBudgetUsd === 'number' && b.maxBudgetUsd > 0 ? b.maxBudgetUsd : DEFAULTS.maxBudgetUsd,
     allowedAssociations: Array.isArray(assoc) && assoc.length ? assoc.map(String) : DEFAULT_ASSOCIATIONS,
+    priorityLabels: validPriorityLabels(b.priorityLabels) ?? [...DEFAULT_PRIORITY_LABELS],
     baseBranch: typeof team?.baseBranch === 'string' && team.baseBranch ? team.baseBranch : 'main',
     branchPrefix: typeof team?.branchPrefix === 'string' && team.branchPrefix ? team.branchPrefix : DEFAULT_BRANCH_PREFIX,
   };
 }
 
 const CLEARED_CHECKS = ['passed', 'n/a'];
+const BASE_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
+/**
+ * Pré-contrôle : le run part de origin/<base>, qui doit porter un team.json initialisé.
+ * baseBranch est validée avant tout appel git (jamais une option). En mode réel, git fetch
+ * met origin/<base> à jour ; en simulation, la référence locale est lue telle quelle.
+ * @returns {string|null} cause du refus, ou null
+ */
+function remoteTeamProblem({ exec, config, projectDir, fetch }) {
+  const base = config.baseBranch;
+  if (!BASE_BRANCH_PATTERN.test(base)) {
+    return `baseBranch « ${flat(base, 100)} » invalide dans .claude/team.json (attendu : ${BASE_BRANCH_PATTERN.source})`;
+  }
+  if (fetch) {
+    const res = exec('git', ['fetch', 'origin', base], { cwd: projectDir });
+    if (res.status !== 0) return `git fetch origin ${base} impossible — ${flat(res.stderr || `code ${res.status}`, 300)}`;
+  }
+  const show = exec('git', ['show', `origin/${base}:.claude/team.json`], { cwd: projectDir });
+  if (show.status !== 0) {
+    return `.claude/team.json absent de origin/${base} : commite et pousse un team.json initialisé (/team-init)${fetch ? '' : ' (référence locale, sans git fetch)'}`;
+  }
+  let remote;
+  try {
+    remote = JSON.parse(String(show.stdout ?? '').replace(/^﻿/, ''));
+  } catch (err) {
+    return `.claude/team.json illisible sur origin/${base} — ${flat(err.message, 200)}`;
+  }
+  if (remote?.initialized !== true) {
+    return `.claude/team.json non initialisé sur origin/${base} : lance /team-init, commite et pousse`;
+  }
+  return null;
+}
 
 /**
  * Branche poussable ? state.branch est écrit par le modèle (influencé par l'issue) et
@@ -90,6 +151,25 @@ const flat = (text, max) => {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim();
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 };
+
+/**
+ * Borne les avertissements (ils viennent du texte des issues) : ceux de l'issue retenue
+ * d'abord, au plus MAX_WARNINGS_PER_ISSUE par issue et MAX_WARNINGS au total. Même règle que
+ * next-issue.mjs.
+ * @returns {{ warnings: { number, message }[], warningsOmitted: number }}
+ */
+function limitWarnings(all, chosenNumber) {
+  const ordered = [...all.filter((w) => w.number === chosenNumber), ...all.filter((w) => w.number !== chosenNumber)];
+  const perIssue = new Map();
+  const warnings = [];
+  for (const w of ordered) {
+    const count = perIssue.get(w.number) ?? 0;
+    if (count >= MAX_WARNINGS_PER_ISSUE || warnings.length >= MAX_WARNINGS) continue;
+    perIssue.set(w.number, count + 1);
+    warnings.push(w);
+  }
+  return { warnings, warningsOmitted: all.length - warnings.length };
+}
 
 /**
  * Décision pure à partir du state.json du run.
@@ -145,8 +225,8 @@ export function decideOutcome(state, config) {
 /** Prompt du run : le texte de l'issue est une donnée, limitée en taille. */
 export function buildPrompt(issue) {
   const title = flat(issue.title, MAX_TITLE);
-  let body = String(issue.body ?? '').replace(/\r\n/g, '\n').trim();
-  if (body.length > MAX_BODY) body = `${body.slice(0, MAX_BODY)}\n[…corps de l'issue tronqué]`;
+  let body = retainedBody(issue.body);
+  if (String(issue.body ?? '').replace(/\r\n/g, '\n').trim().length > MAX_BODY) body += '\n[…corps de l\'issue tronqué]';
   return `/team Issue #${issue.number} : ${title}${body ? `\n\n${body}` : ''}`;
 }
 
@@ -269,6 +349,12 @@ export function runBacklog({ argv, exec = defaultExec, env = process.env, projec
   const limit = Math.min(args.limit ?? config.maxIssues, config.maxIssues);
   const gh = (ghArgs, opts = {}) => exec('gh', ghArgs, { cwd: projectDir, ...opts });
 
+  const remoteProblem = remoteTeamProblem({ exec, config, projectDir, fetch: args.yes });
+  if (remoteProblem) {
+    warn(`erreur : ${remoteProblem}`);
+    return { code: 2, report: null };
+  }
+
   const repoRes = gh(['repo', 'view', '--json', 'name,nameWithOwner']);
   let repo;
   try {
@@ -283,7 +369,7 @@ export function runBacklog({ argv, exec = defaultExec, env = process.env, projec
   try {
     const path = args.issue
       ? `repos/{owner}/{repo}/issues/${args.issue}`
-      : `repos/{owner}/{repo}/issues?state=open&labels=${encodeURIComponent(config.label)}&per_page=50`;
+      : `repos/{owner}/{repo}/issues?state=open&labels=${encodeURIComponent(config.label)}&sort=created&direction=asc&per_page=50`;
     const res = gh(['api', path]);
     if (res.status !== 0) throw new Error(res.stderr || `code ${res.status}`);
     const data = JSON.parse(res.stdout);
@@ -300,17 +386,51 @@ export function runBacklog({ argv, exec = defaultExec, env = process.env, projec
     startedAt: startedAt.toISOString(), dryRun: args.dryRun, repo: repo.nameWithOwner, label: config.label,
     draftPr: config.draftPr, maxBudgetUsd: config.maxBudgetUsd, issues: [], skipped: [],
   };
-  const selected = [];
+  const eligible = [];
   for (const issue of candidates) {
     const reason = eligibility(issue, config, { requireLabel: !args.issue });
     if (reason) report.skipped.push({ number: issue.number, reason });
-    else if (selected.length < limit) selected.push(issue);
+    else eligible.push(issue);
+  }
+
+  // Prêtes, ordonnées, débloquées : même fonction que next-issue.mjs. Dépendances lues en GET.
+  const fetchIssue = (n) => {
+    const res = gh(['api', `repos/{owner}/{repo}/issues/${n}`]);
+    if (res.status !== 0) return null;
+    try {
+      return JSON.parse(res.stdout);
+    } catch {
+      return null;
+    }
+  };
+  const depStates = resolveDependencyStates(eligible, fetchIssue, { priorityLabels: config.priorityLabels });
+  const { ready, skipped: held, warnings } = orderIssues(eligible, { priorityLabels: config.priorityLabels, depStates });
+  const selected = [];
+  for (const issue of ready) {
+    if (selected.length < limit) selected.push(issue);
     else report.skipped.push({ number: issue.number, reason: `au-delà de la limite (${limit})` });
   }
+  // En mode réel, seules les issues non prêtes reçoivent une réponse ; dépendances et cycles : rien.
+  const notReady = args.yes ? held.filter((h) => h.kind === 'not_ready') : [];
+  report.skipped.push(...held.filter((h) => !notReady.includes(h)).map(({ number, reason }) => ({ number, reason })));
+  Object.assign(report, limitWarnings(warnings, selected[0]?.number ?? null));
 
   mkdirSync(reportDir, { recursive: true });
   const ctx = { exec, gh, env, config, team, repo, reportDir, stamp, tmpRoot, projectDir, labelsReady: false };
   let failed = false;
+  for (const item of notReady) {
+    const issue = eligible.find((i) => i.number === item.number);
+    const entry = { number: issue.number, title: flat(issue.title, MAX_TITLE), url: issue.html_url ?? null };
+    try {
+      answerNotReady(issue, item, entry, ctx);
+    } catch (err) {
+      failed = true;
+      entry.outcome = 'error';
+      entry.reason = flat(err.message, 500);
+    }
+    report.issues.push(entry);
+    log(`#${entry.number} ${entry.title} → ${entry.outcome}${entry.reason ? ` (${entry.reason})` : ''}`);
+  }
   for (const issue of selected) {
     const entry = {
       number: issue.number,
@@ -339,7 +459,7 @@ export function runBacklog({ argv, exec = defaultExec, env = process.env, projec
   report.finishedAt = now().toISOString();
   const reportPath = join(reportDir, `${stamp}.json`);
   writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
-  log(`${selected.length} issue(s) ${args.dryRun ? 'à traiter (simulation)' : 'traitée(s)'}, ${report.skipped.length} ignorée(s). Rapport : ${reportPath}`);
+  log(`${report.issues.length} issue(s) ${args.dryRun ? 'à traiter (simulation)' : 'traitée(s)'}, ${report.skipped.length} ignorée(s). Rapport : ${reportPath}`);
   return { code: failed ? 1 : 0, report };
 }
 
@@ -368,6 +488,28 @@ function comment(ctx, number, text) {
   const file = join(ctx.reportDir, `${ctx.stamp}-issue-${number}-comment.md`);
   writeFileSync(file, `${text}\n`);
   must(ctx.gh(['issue', 'comment', String(number), '--body-file', file]), 'commentaire');
+}
+
+/**
+ * Issue non prête (mode réel) : commentaire fait de constantes (libellés des rubriques
+ * manquantes et marche à suivre, jamais le texte de l'issue), puis agent-needs-info à la place
+ * du label de déclenchement. Ni git fetch, ni worktree, ni claude.
+ */
+function answerNotReady(issue, item, entry, ctx) {
+  const n = String(issue.number);
+  const missing = READY_SECTIONS.map((s) => s.label).filter((label) => item.missing?.includes(label));
+  entry.outcome = 'not_ready';
+  entry.reason = `issue non prête : ${missing.join(', ')}`;
+  ensureLabels(ctx);
+  comment(ctx, n, [
+    'Run automatique `/team` (claude-config) : **not_ready**. Cette issue n\'est pas prête, elle sera traitée une fois complétée.',
+    '',
+    'Rubriques manquantes ou vides (titres Markdown `##`) :',
+    ...missing.map((label) => `- ${label}`),
+    '',
+    `Pour relancer : complète l'issue avec ces rubriques (modèle d'issue proposé par \`/team-init\`, \`.github/ISSUE_TEMPLATE/agent-ready.md\`), puis remets le label \`${ctx.config.label}\`.`,
+  ].join('\n'));
+  must(ctx.gh(['issue', 'edit', n, '--add-label', LABELS.needsInfo, '--remove-label', ctx.config.label]), 'labels de résultat');
 }
 
 /** Contrôles Git avant le push réel, en plus de branchProblem. */

@@ -5,9 +5,10 @@ disable-model-invocation: true
 ---
 
 Tu adaptes l'équipe d'agents à ce projet. Tu **découvres** ; tu ne supposes rien. Tu
-ne modifies que `.claude/team.json` et les skills de conventions
-(`.claude/skills/conventions-backend/SKILL.md`, `.claude/skills/conventions-frontend/SKILL.md`),
-et seulement après validation.
+ne modifies que `.claude/team.json`, les skills de conventions
+(`.claude/skills/conventions-backend/SKILL.md`, `.claude/skills/conventions-frontend/SKILL.md`)
+et le modèle d'issue `.github/ISSUE_TEMPLATE/agent-ready.md`, et seulement après
+validation.
 
 Lis d'abord [les règles communes](../team-rules/SKILL.md).
 
@@ -59,7 +60,7 @@ Propose enfin les réglages facultatifs, en partant des valeurs actuelles de
 | `escalationModel` | `"opus"`                               | Modèle utilisé quand une tâche échoue avec le modèle par défaut                   |
 | `sensitivePaths`  | `[]`                                   | Motifs (`*`, `**`, `?`) de zones sensibles propres au projet ; ils s'ajoutent aux zones déjà sensibles (dépendances, migrations, CI, auth, secrets), sans jamais en retirer |
 | `lessons`         | `enabled: true`, `maxEntries: 30`      | `enabled: false` pour ne pas garder de leçons entre les runs                      |
-| `backlog`         | `label: "agent-ready"`, `draftPr: false`, `maxIssues: 3`, `maxBudgetUsd: 5` | Traitement planifié des issues ; `draftPr: true` autorise l'ouverture de PR brouillons |
+| `backlog`         | `label: "agent-ready"`, `priorityLabels: ["P0","P1","P2"]`, `draftPr: false`, `maxIssues: 3`, `maxBudgetUsd: 5` | Traitement planifié des issues ; `priorityLabels` : labels de priorité, du plus haut au plus bas ; `draftPr: true` autorise l'ouverture de PR brouillons |
 
 Pour `ci`, vérifie que `gh auth status` réussit ; sinon propose `enabled: false` ou
 dis comment authentifier `gh`. `parallel` est réservé : laisse `enabled: false`.
@@ -92,7 +93,23 @@ Pour chaque côté :
 4. Montre le contenu proposé et fais-le valider (ou corriger) avant de l'écrire. Une
    skill déjà remplie : propose seulement les différences.
 
-## 5. Enregistrer
+## 5. Modèle d'issue
+
+Le traitement planifié des issues (`backlog`) ne prend que des issues « prêtes » : les
+rubriques *Objectif*, *Comportement attendu ou critères* et *Hors périmètre* doivent
+être remplies. Propose le modèle livré avec cette skill,
+[issue-template.md](issue-template.md), pour que les issues les contiennent d'emblée.
+
+1. Montre son contenu tel quel, avec le chemin cible
+   `.github/ISSUE_TEMPLATE/agent-ready.md`. Si `priorityLabels` est personnalisé,
+   propose d'adapter le commentaire d'aide ; ne change jamais les noms des rubriques.
+2. N'écris le fichier qu'après un **accord explicite**. Sans accord, ne crée ni le
+   fichier ni le dossier `.github/ISSUE_TEMPLATE/`.
+3. Si `.github/ISSUE_TEMPLATE/agent-ready.md` existe déjà, n'écrase jamais : propose
+   seulement les différences avec le modèle et n'applique que celles que l'utilisateur
+   accepte.
+
+## 6. Enregistrer
 
 Après un accord explicite, écris les skills de conventions validées et mets à jour
 `.claude/team.json` :
@@ -113,5 +130,5 @@ Après un accord explicite, écris les skills de conventions validées et mets �
 
 N'écris que les clés validées par l'utilisateur ; conserve les autres clés existantes
 (`maxAttempts`, `pullRequest`, `ci`…) ; dans `agents`, ne change que les agents
-validés. Termine par un rappel : `team.json` et les skills de conventions
-appartiennent au projet et peuvent être commités ; `.agent-runs/` est ignoré par Git.
+validés. Termine par un rappel : `team.json`, les skills de conventions et le modèle
+d'issue appartiennent au projet et peuvent être commités ; `.agent-runs/` est ignoré par Git.

@@ -236,6 +236,17 @@ test('team.json : chaque clé facultative mal typée est signalée', () => {
   }
 });
 
+test('team.json : backlog.priorityLabels doit être une liste non vide de textes non vides, sans doublon', () => {
+  const message = /team\.json : backlog\.priorityLabels : doit être une liste non vide de textes non vides, sans doublon/;
+  for (const bad of [[], ['P0', ''], ['P0', 'P0'], ['P0', ' P0 '], 'P0', [1], null]) {
+    assert.match(errorsOf(withTeam({ backlog: { priorityLabels: bad } })), message, JSON.stringify(bad));
+  }
+  for (const good of [['P0', 'P1', 'P2'], ['urgent']]) {
+    assert.doesNotMatch(errorsOf(withTeam({ backlog: { priorityLabels: good } })), /priorityLabels/, JSON.stringify(good));
+  }
+  assert.doesNotMatch(errorsOf(withTeam({ backlog: {} })), /priorityLabels/, 'clé facultative');
+});
+
 test('team.json : sections facultatives qui ne sont pas des objets, motifs vides', () => {
   const errors = errorsOf(withTeam({ ci: true, prComments: [], lessons: 'oui', backlog: null, parallel: 1, sensitivePaths: ['ok/**', ''] }));
   for (const key of ['ci', 'prComments', 'lessons', 'backlog', 'parallel']) {

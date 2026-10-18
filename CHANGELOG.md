@@ -1,11 +1,54 @@
 # Changelog
 
-## Non publié
+## 0.7.0 — 2026-10-18 — Issues prêtes, priorité et dépendances
+
+Ajouté :
+- Issue « prête » : `/team-next` et `backlog.mjs` ne prennent qu'une issue dont le corps
+  contient trois rubriques en titres Markdown non vides (Objectif, Comportement attendu
+  ou critères, Hors périmètre), vérifiées sur le texte retenu (4 000 caractères). Une
+  autre est écartée avec « issue non prête : <rubriques manquantes> ». En mode réel
+  (`--yes`), `backlog.mjs` lui donne le label `agent-needs-info` à la place de
+  `agent-ready`, avec un commentaire qui liste les rubriques manquantes ; sans worktree ni
+  `claude`, hors de la limite d'issues du passage (outcome `not_ready` dans le rapport).
+- Modèle d'issue `.github/ISSUE_TEMPLATE/agent-ready.md`, proposé par `/team-init`
+  (écrit seulement avec accord, jamais écrasé ; `install.mjs` ne le copie pas).
+- Priorité : clé `backlog.priorityLabels` (défaut `["P0","P1","P2"]`). Les issues prêtes
+  sont prises par priorité, puis par ancienneté ; sans label de priorité, en dernier.
+  Même ordre pour `/team-next` et `backlog.mjs`. `validate.mjs` vérifie la clé.
+- Dépendances : une ligne « Dépend de #n » écarte l'issue tant que #n est ouverte
+  (« dépend de #n (ouverte) ») ou si les issues s'attendent en cycle ; #n fermée, l'issue
+  est éligible ; référence illisible ou état inconnu : avertissement (5 par issue, 20 au
+  total, `warningsOmitted` dans le rapport et dans `next-issue.mjs --json`). 20 lectures
+  `gh api` (GET) au plus par passage.
+- `backlog.mjs` vérifie au démarrage, avant tout appel `gh`, que `baseBranch` est un nom
+  valide et que `.claude/team.json` est présent et initialisé sur `origin/<base>` ; sinon
+  code 2 avec la cause. `git fetch origin <base>` en `--yes` ; pas de fetch en
+  `--dry-run` (référence locale).
+- ADR 0009 ; `docs/BACKLOG.md` et `docs/USAGE.md` décrivent ces règles.
+
+Modifié :
+- **Rupture** : une issue `agent-ready` sans les trois rubriques n'est plus traitée.
+  Migration : compléter les issues concernées avec les trois titres (`## Objectif`,
+  `## Comportement attendu ou critères`, `## Hors périmètre`), ou adopter le modèle
+  d'issue proposé par `/team-init`, puis remettre le label `agent-ready`. Des libellés en
+  gras ne suffisent pas : ce sont les titres Markdown qui comptent.
+- `/team-next` ne prend plus la plus ancienne issue mais la plus prioritaire, prête et
+  débloquée.
+- `backlog.mjs` ne suit plus l'ordre par défaut de GitHub (les plus récentes d'abord) : il
+  lit les 50 issues les plus anciennes portant le label et les traite par priorité, puis
+  par ancienneté.
+- Le test CLI de `check-state` ne dépend plus du `.claude/team.json` de la racine du
+  dépôt (il tourne dans un dossier sans `.claude/`) : `npm run check` passe avec la copie
+  installée.
 
 Ajouté (dépôt) :
 - Le dépôt utilise sa propre équipe d'agents : `npm run dogfood` installe
   `template/.claude/` dans `.claude/` (copie ignorée par Git, régénérée après chaque
   changement du template). Les évolutions passent par des branches `team/…` et des PR.
+
+Corrigé (dépôt) :
+- `.gitignore` : seule la copie installée à la racine (`/.claude/`) est ignorée, plus les
+  nouveaux fichiers de `template/.claude/`.
 
 ## 0.6.0 — 2026-10-18 — Agent expert et .gitignore à l'installation
 
