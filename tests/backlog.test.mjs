@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import {
   backlogConfig, buildPrompt, decideOutcome, MAX_BODY, resolveCommand, runBacklog,
 } from '../template/.claude/skills/team-backlog/scripts/backlog.mjs';
-import { checkState } from '../template/.claude/skills/team/scripts/check-state.mjs';
+import { checkState, planDigest } from '../template/.claude/skills/team/scripts/check-state.mjs';
 import { TEMPLATE_CLAUDE, tempDir, writeFile } from './helpers.mjs';
 
 const example = () => JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'skills/team/templates/state.json'), 'utf8'));
@@ -23,6 +23,12 @@ function readyState() {
   state.checks[0].status = 'passed';
   state.tasks[0].status = 'done';
   state.tasks[0].validation = { checks: 'passed', review: 'approve', evidence: [] };
+  // Schéma 2 : plan vérifié par check-plan, périmètre posé par check-scope.
+  state.tasks[0].scope = {
+    status: 'ok', changed: ['src/exemple.py'], outOfPlan: [], outOfPlanTests: [], sensitive: [],
+    at: null, by: 'check-scope', justification: '', approvedBy: null,
+  };
+  state.planCheck = { status: 'passed', at: null, by: 'check-plan', digest: planDigest(state.tasks), errors: [] };
   return state;
 }
 
