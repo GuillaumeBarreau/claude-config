@@ -49,6 +49,27 @@ infrastructure ; `priority` ∈ P0, P1, P2 ; `complexity` ∈ S, M, L.
 - Fichier sensible (dépendances, migrations, CI, authentification et permissions,
   secrets, `.claude/`, motifs `sensitivePaths` de `team.json`) → `requiresHuman: true`.
 - `origin` : `plan` pour les tâches de ce bloc.
+- `agent` : le développeur qui réalise la tâche (routage ci-dessous) ; absent =
+  `implementer`. `check-plan` refuse un agent inconnu ou désactivé dans `team.json`
+  (`agents.<nom>: false`).
+
+### Routage des tâches
+
+Une tâche est confiée selon ses fichiers (`files` + `newFiles`, tests compris ; le
+côté se lit dans l'arborescence et dans les skills `conventions-backend` /
+`conventions-frontend` quand elles le précisent) :
+
+| Fichiers de la tâche                                  | `agent`                |
+| ----------------------------------------------------- | ---------------------- |
+| tous côté serveur (API, services, données, jobs)      | `implementer-backend`  |
+| tous côté interface (composants, pages, styles)       | `implementer-frontend` |
+| uniquement de la documentation (README, docs/, CHANGELOG, ADR) | `documentation` |
+| mixtes, outillage, configuration, ou doute            | `implementer`          |
+
+Un spécialiste désactivé dans `team.json` est remplacé par `implementer`. Si le
+changement modifie un comportement visible, une API ou la configuration, le plan
+comprend une tâche `type: "documentation"` (agent `documentation` s'il est activé,
+sinon `implementer`), qui dépend des tâches qu'elle documente.
 
 ```json
 [

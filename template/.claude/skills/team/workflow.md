@@ -26,24 +26,45 @@ reconnaît par leur chemin (motifs ajoutables dans `team.json` → `sensitivePat
 | Clarification      | orchestrateur + user | Questions du planner           | Réponses dans `state.json`   | Plus de question bloquante                       | > `maxClarificationRounds` → `blocked`   | Spec ou plan       |
 | Plan               | `planner`            | Spec validée                   | `plan.md`, tâches            | `check-plan --record` passé                      | Erreurs → retour au planner              | Porte 1            |
 | Porte 1            | utilisateur (orchestrateur en autonomie) | Résumé du plan | `gates.plan = passed`      | « Oui » explicite, ou conditions d'autonomie     | Modifications → plan                     | Exécution          |
-| Exécution          | `implementer`        | Une tâche `ready`, run         | Changements non commités     | Livrable `ready` avec preuves                    | Question `technical` → consultation ; `product` → `awaiting_input` | Périmètre |
+| Exécution          | `task.agent` (défaut `implementer`) | Une tâche `ready`, run | Changements non commités     | Livrable `ready` avec preuves                    | Question `technical` → consultation ; `product` → `awaiting_input` | Périmètre |
 | Périmètre          | `check-scope.mjs`    | Diff de la tâche               | `task.scope`                 | `ok`, ou écart justifié                          | Fichier sensible → accord de l'utilisateur | Contrôles        |
 | Contrôles (porte 2)| `run-checks.mjs`     | `checks` de `team.json`        | Statuts, `checks/*.log`      | Tous les `required` à `passed`                   | `failed` → correction                    | Relecture          |
 | Relecture (porte 3)| `code-reviewer`      | Diff de la tâche, run          | `review-<Tn>-<k>.json`       | Verdict `approve`, AC de la tâche couverts       | `changes_requested` → correction         | Commit             |
-| Correction         | `implementer` (escalade) | Constats, journaux en échec | Changements complétés        | Retour au périmètre                              | Tentatives épuisées → redécoupage, puis `blocked` | Périmètre  |
+| Correction         | `task.agent` (escalade) | Constats, journaux en échec | Changements complétés        | Retour au périmètre                              | Tentatives épuisées → redécoupage, puis `blocked` | Périmètre  |
 | Commit             | orchestrateur        | Tâche approuvée                | Un commit par tâche          | Tâche `done`                                     | —                                        | Tâche suivante     |
 | Livraison (porte 4)| orchestrateur + user | Branche, `pr.md` conforme (`check-pr`) | Push et PR brouillon **si accord** | Accord explicite pour cette action | Refus → reste local                 | CI                 |
 | CI                 | `ci-wait.mjs`        | Branche poussée                | `state.ci`, `ci/*.log`       | CI verte ou absente → `done`                     | Rouge → tâche `CI<n>`, run rouvert       | Synthèse           |
+
+## Agents développeurs et routage
+
+Chaque tâche porte `agent`, choisi par le planner selon la règle « Routage des
+tâches » de `templates/plan.md` et vérifié par `check-plan` (développeur connu et
+activé dans `team.json`) :
+
+| Agent                  | Tâches                                                     | Skills préchargées                              |
+| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
+| `implementer` (défaut) | mixtes front et back, projet sans séparation, outillage    | `team-rules`, `team-implementer`                |
+| `implementer-backend`  | tous les fichiers côté serveur                             | + `conventions-backend` (propre au projet)      |
+| `implementer-frontend` | tous les fichiers côté interface                           | + `conventions-frontend` (propre au projet)     |
+| `documentation`        | documentation seule (README, docs/, CHANGELOG, ADR)        | `team-rules`                                    |
+
+Tous rendent le livrable du schéma `implementer` (avec leur propre nom dans
+`agent`) et sont soumis aux mêmes règles : `guard-files` leur refuse `.claude/` et
+`.agent-runs/`, escalade de modèle, consultation et redécoupage valent pour chacun.
+Les tâches `CI<n>` et `PR<k>` créées par les scripts vont à `implementer`.
 
 ## Revue du plan (avant la porte 1)
 
 `check-plan.mjs .agent-runs/<id> --record` fait foi et écrit `planCheck` : chaque AC
 couvert, tâches recopiées fidèlement depuis `plan.md`, fichiers existants ou déclarés
-dans `newFiles`, dépendances valides sans cycle, fichier sensible ⇒ `requiresHuman`.
+dans `newFiles`, dépendances valides sans cycle, fichier sensible ⇒ `requiresHuman`,
+agent connu et activé.
 Code 1 → le plan repart au planner avec les erreurs. Restent à ton jugement :
 
 - [ ] Le découpage est proportionné : une petite demande tient en une tâche.
 - [ ] Les risques et le hors périmètre sont crédibles.
+- [ ] Chaque tâche a l'agent que donne le routage ; un changement de comportement
+      visible, d'API ou de configuration a sa tâche de documentation.
 - [ ] (Information) `plan-waves.mjs .agent-runs/<id>` montre les tâches qui pourraient
       tourner en parallèle ; l'exécution reste séquentielle (ADR 0006).
 
@@ -60,16 +81,17 @@ Code 1 → le plan repart au planner avec les erreurs. Restent à ton jugement :
 
 **Boucle, une tâche à la fois** : la prochaine tâche `ready` dont toutes les
 dépendances sont `done`.
-1. Tâche `in_progress`. Lance `implementer` avec le chemin du run, l'id de la tâche,
-   la branche attendue et, en correction, les fichiers à traiter par leur chemin
-   (`review-<Tn>-<k>.json`, `pr-comments-<k>.json`, `checks/*.log`, `ci/*.log`) : il
-   les lit tels quels.
+1. Tâche `in_progress`. Lance l'agent de la tâche (`subagent_type` = `task.agent`,
+   défaut `implementer` ; description `"<task.agent> <Tn> #<k>"`) avec le chemin du
+   run, l'id de la tâche, la branche attendue et, en correction, les fichiers à
+   traiter par leur chemin (`review-<Tn>-<k>.json`, `pr-comments-<k>.json`,
+   `checks/*.log`, `ci/*.log`) : il les lit tels quels.
 2. Lis son bloc JSON. Question `technical` → **consultation** : `planner` en mode
-   `consult` avec la question et le contexte de la tâche, réponse transmise à
-   l'implementer (au plus 2 par tâche, compteur `consultations`, événement
+   `consult` avec la question et le contexte de la tâche, réponse transmise au
+   développeur (au plus 2 par tâche, compteur `consultations`, événement
    `consulted`). Question `product` → run `awaiting_input`. `blocked` → run `blocked`.
 3. `check-scope.mjs .agent-runs/<id> --task <Tn>` écrit `task.scope`. `deviation` :
-   recopie dans `scope.justification` la raison donnée par l'implementer
+   recopie dans `scope.justification` la raison donnée par le développeur
    (`deviations`), ou fais corriger. `sensitive` : accord explicite de l'utilisateur
    (`scope.approvedBy: "user"`), sinon run `blocked`.
 4. Statut `checking` : `run-checks.mjs .agent-runs/<id> --task <Tn>`. Échec →
@@ -81,7 +103,7 @@ dépendances sont `done`.
 6. `approve` → `git add -A` puis un commit `<convention> <titre> (<Tn>)` sur la branche
    du run ; tâche `done`, sha du commit dans `validation.evidence`, statut `executing`.
 7. **Correction**, `attempts` + 1 :
-   - 1re correction : `implementer` avec `model: <escalationModel>` dans l'appel
+   - 1re correction : le même agent (`task.agent`) avec `model: <escalationModel>` dans l'appel
      (défaut `opus`), événement `escalated` ;
    - au-delà de `maxAttempts` : **redécoupage**, une seule fois. `planner` en mode
      `split` avec la tâche, ses constats et ses journaux. Les nouvelles tâches
@@ -143,7 +165,7 @@ GitHub : skill `/team-backlog` et `docs/BACKLOG.md`.
 | Hook                | Quand                            | Effet |
 | ------------------- | -------------------------------- | ----- |
 | `guard-bash`        | Avant Bash / PowerShell          | **Refuse** commit ou push sur la branche de base, fusion de PR (`gh pr merge`, `glab mr merge`, `gh api` qui écrit sur `/pulls/<n>/merge` ou mutation `mergePullRequest`), `Co-Authored-By` dans un commit, `--no-verify`, lecture de `.env`, `rm -rf` massif. **Demande l'accord** pour push, publication, tag, `reset --hard`, `clean -f`, réécriture d'historique, ajout de dépendance, et toute commande `gh` qui n'est pas une lecture (`view`, `list`, `status`, `diff`, `checks`, `run watch`, `search`, `auth status`, `gh api` en GET sans champ). Préfixes (`(`, `&`, `env`, `sudo`, `$(…)`) et chemins (`gh.exe`) normalisés avant contrôle |
-| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture de `implementer` dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
+| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture d'un développeur (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`) dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
 | `check-run-state`   | Après Edit / Write               | Relance `check-state` sur chaque `state.json` écrit ; une erreur revient au modèle |
 | `check-deliverable` | Fin d'un sous-agent de l'équipe  | **Renvoie l'agent au travail**, une fois, si son bloc JSON final manque ou est invalide ; enregistre `deliverables/` et `review-*.json` ; n'écrit jamais `state.json` |
 | `record-metrics`    | Après Agent, et Stop             | Ajoute une mesure à `metrics.jsonl` ; ne bloque jamais |

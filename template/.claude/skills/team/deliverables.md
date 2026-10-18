@@ -1,6 +1,6 @@
 # Livrables structurés des agents
 
-Chaque agent de l'équipe (`planner`, `implementer`, `code-reviewer`) **termine** son
+Chaque agent de l'équipe (`planner`, les développeurs, `code-reviewer`) **termine** son
 message final par un bloc ```json, **sans aucun texte après**. Ce bloc est la seule
 partie que l'orchestrateur et les scripts lisent ; la prose qui précède sert à
 l'utilisateur.
@@ -16,7 +16,7 @@ Vérification manuelle (repli) :
 
 | Champ       | Valeur                                                                 |
 | ----------- | ---------------------------------------------------------------------- |
-| `agent`     | `planner`, `implementer` ou `code-reviewer` (le tien)                  |
+| `agent`     | ton nom d'agent : `planner`, `implementer`, `implementer-backend`, `implementer-frontend`, `documentation` ou `code-reviewer` |
 | `run`       | id du run (`.agent-runs/<id>/`), ou `null` hors run                    |
 | `status`    | `ready`, `blocked` ou `needs_input`                                    |
 | `questions` | `[{ "kind": "technical" \| "product", "text": "…" }]`, liste vide sinon |
@@ -51,6 +51,9 @@ Vérification manuelle (repli) :
 ```
 
 ## implementer
+
+Schéma commun aux **développeurs** : `implementer`, `implementer-backend`,
+`implementer-frontend` et `documentation` ; seul `agent` change (le tien).
 
 | Champ        | Valeur                                                                         |
 | ------------ | ------------------------------------------------------------------------------ |
@@ -129,4 +132,4 @@ Cohérence : `approve` ⇒ aucun constat `critical` ou `major` **confirmé** ;
 | `url`        | facultatif : lien vers le commentaire ou le job de CI               |
 
 Les constats des commentaires de PR (`pr-comments-<k>.json`) et de la CI suivent le
-même format : l'implementer les lit tels quels.
+même format : le développeur les lit tels quels.

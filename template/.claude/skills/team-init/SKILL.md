@@ -1,11 +1,13 @@
 ---
 name: team-init
-description: Adapte l'équipe d'agents au projet courant - découvre la branche de base, la convention de commit et les commandes de validation (format, lint, types, tests, build), les fait valider par l'utilisateur et les enregistre dans .claude/team.json. À lancer une fois après l'installation, puis quand les outils du projet changent.
+description: Adapte l'équipe d'agents au projet courant - découvre la branche de base, la convention de commit et les commandes de validation (format, lint, types, tests, build), les fait valider par l'utilisateur et les enregistre dans .claude/team.json ; génère les conventions back-end et front-end lues par les implementers spécialisés, et désactive un spécialiste sans objet. À lancer une fois après l'installation, puis quand les outils du projet changent.
 disable-model-invocation: true
 ---
 
-Tu adaptes l'équipe d'agents à ce projet. Tu **découvres** ; tu ne supposes rien. Le
-seul fichier que tu modifies est `.claude/team.json`, et seulement après validation.
+Tu adaptes l'équipe d'agents à ce projet. Tu **découvres** ; tu ne supposes rien. Tu
+ne modifies que `.claude/team.json` et les skills de conventions
+(`.claude/skills/conventions-backend/SKILL.md`, `.claude/skills/conventions-frontend/SKILL.md`),
+et seulement après validation.
 
 Lis d'abord [les règles communes](../team-rules/SKILL.md).
 
@@ -62,9 +64,38 @@ Propose enfin les réglages facultatifs, en partant des valeurs actuelles de
 Pour `ci`, vérifie que `gh auth status` réussit ; sinon propose `enabled: false` ou
 dis comment authentifier `gh`. `parallel` est réservé : laisse `enabled: false`.
 
-## 4. Enregistrer
+## 4. Conventions des implementers spécialisés
 
-Après un accord explicite, mets à jour `.claude/team.json` :
+`implementer-backend` et `implementer-frontend` préchargent chacun une skill de
+conventions **propre au projet** (créée par l'installation, jamais remplacée ensuite).
+Pour chaque côté :
+
+1. **Le projet a-t-il ce côté ?** Serveur (routes, contrôleurs, services, accès aux
+   données, migrations) ; interface (composants, pages, styles, `package.json` d'une
+   application web ou mobile). Un côté absent → propose `agents.<nom>: false` dans
+   `team.json` (les tâches iront à `implementer`). Pareil pour `documentation` si
+   l'utilisateur ne veut pas de tâche de documentation dédiée.
+2. **Sinon, lis le code** et rédige la skill, courte (≤ 80 lignes), à partir de ce que
+   tu as **vu**, chaque point avec le fichier qui le montre :
+   - framework et versions (manifeste de dépendances) ;
+   - arborescence : où vivent les fichiers de ce côté (dossiers, motifs de chemin) —
+     c'est aussi ce que le planner lit pour router les tâches ;
+   - commandes : lancer, tester un fichier, lint, types (celles de `checks`) ;
+   - style : nommage, gestion des erreurs, journalisation, imports ; back : validation
+     des entrées, accès aux données ; front : design system, état, i18n, accessibilité ;
+   - tests : outil, emplacement, nommage, doublures, données de test ;
+   - **fichiers modèles à imiter** : deux ou trois fichiers représentatifs (un module,
+     son test).
+3. Garde le frontmatter (`name`, `description`, `user-invocable: false`), sans
+   `disable-model-invocation` (la skill doit rester préchargeable). Rien d'inventé :
+   ce que le code ne montre pas, écris-le comme inconnu.
+4. Montre le contenu proposé et fais-le valider (ou corriger) avant de l'écrire. Une
+   skill déjà remplie : propose seulement les différences.
+
+## 5. Enregistrer
+
+Après un accord explicite, écris les skills de conventions validées et mets à jour
+`.claude/team.json` :
 
 ```json
 {
@@ -72,6 +103,7 @@ Après un accord explicite, mets à jour `.claude/team.json` :
   "baseBranch": "main",
   "commitConvention": "Conventional Commits (feat:, fix:…)",
   "autonomy": "supervised",
+  "agents": { "implementer-frontend": false },
   "checks": [
     { "name": "lint", "command": "ruff check .", "required": true },
     { "name": "tests", "command": "pytest", "required": true }
@@ -80,6 +112,6 @@ Après un accord explicite, mets à jour `.claude/team.json` :
 ```
 
 N'écris que les clés validées par l'utilisateur ; conserve les autres clés existantes
-(`agents`, `maxAttempts`, `pullRequest`, `ci`…). Termine par un rappel :
-`team.json` appartient au projet et peut être commité ; `.agent-runs/` est ignoré
-par Git.
+(`maxAttempts`, `pullRequest`, `ci`…) ; dans `agents`, ne change que les agents
+validés. Termine par un rappel : `team.json` et les skills de conventions
+appartiennent au projet et peuvent être commités ; `.agent-runs/` est ignoré par Git.
