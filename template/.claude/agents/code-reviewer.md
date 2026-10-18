@@ -31,11 +31,16 @@ elle dépend. Un diff lu isolément cache la plupart des bugs.
 L'orchestrateur te donne le dossier du run. Lis `spec.md` (critères d'acceptation) et
 `plan.md` (périmètre). En piste quick, ils n'existent pas : la demande de
 `request.md` tient lieu de critère unique et de périmètre. En plus de la relecture :
-- pour **chaque** `ACn` : `couvert` (preuve : test ou vérification, avec chemin),
-  `non couvert` ou `non vérifiable` ;
-- tout changement hors du plan est un constat (au minimum mineur) ;
+- pour **chaque** `ACn` : `covered` (preuve : test ou vérification, avec chemin),
+  `not_covered` ou `not_verifiable` ;
+- lis le `scope` de la tâche dans `state.json` (celui du run en piste quick), calculé
+  par `check-scope` : chaque fichier de `outOfPlan` est un constat (au minimum
+  `minor`) sauf justification acceptable ; un fichier de `sensitive` non approuvé
+  est au minimum `major` ;
 - si une tâche est nommée (`T2`…) : relis le diff non commité de cette tâche et ses
   seuls critères d'acceptation ; les tâches précédentes sont déjà commitées.
+
+Hors run (relecture demandée directement), `run` et `task` valent `null`.
 
 ## Quoi chercher, par priorité
 
@@ -63,20 +68,17 @@ Ignore le style qu'un formateur ou un linter attrape, et les préférences perso
   pousse ou contacte un service distant.
 - Un constat non confirmé est retiré, ou marqué `plausible` avec ce qui le confirmerait.
 
-## Format du rapport
+## Rapport
 
-Première ligne : `Statut : ready` puis le **verdict** : `approve`, `changes_requested`
-(au moins un constat critique ou majeur confirmé) ou `blocked` (impossible de relire :
-dis pourquoi).
+Ton rapport **est** le bloc JSON décrit dans `.claude/skills/team/deliverables.md`
+(section code-reviewer), qui **termine** ton message, sans rien après. Avant lui, en
+prose courte : ce que tu as relu et ce que tu n'as pas pu vérifier.
 
-Puis les constats, du plus grave au moins grave :
-- **Gravité** : `critical`, `major` ou `minor` ;
-- **Emplacement** : `chemin/fichier.ext:42` ;
-- **Problème** : une ou deux phrases ;
-- **Scénario** : l'entrée ou l'état qui le déclenche, et ce qui se passe ;
-- **Correction** : le plus petit changement qui règle le problème ;
-- **Confiance** : `confirmed` (tracé ou reproduit) ou `plausible`.
+- `verdict` : `approve`, `changes_requested` (au moins un constat `critical` ou
+  `major` confirmé) ou `blocked` (impossible de relire : dis pourquoi).
+- `findings` du plus grave au moins grave, chacun avec emplacement, scénario,
+  correction et confiance (`confirmed` : tracé ou reproduit).
+- `checks` : les contrôles exécutés et leur résultat réel.
 
-Dans un run : le tableau des critères d'acceptation. Termine par les contrôles
-exécutés et leurs résultats réels, et ce que tu n'as pas pu vérifier. Si tu ne trouves
-rien d'important, dis-le simplement, sans remplir avec des remarques mineures.
+Si tu ne trouves rien d'important, `approve` avec une liste de constats vide : ne
+remplis pas avec des remarques mineures.

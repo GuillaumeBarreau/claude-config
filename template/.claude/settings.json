@@ -3,7 +3,17 @@
     "allow": [
       "Bash(node .claude/skills/team/scripts/check-state.mjs *)",
       "Bash(node .claude/skills/team/scripts/run-checks.mjs *)",
-      "Bash(node .claude/skills/team/scripts/check-pr.mjs *)"
+      "Bash(node .claude/skills/team/scripts/check-pr.mjs *)",
+      "Bash(node .claude/skills/team/scripts/claim-run.mjs *)",
+      "Bash(node .claude/skills/team/scripts/check-plan.mjs *)",
+      "Bash(node .claude/skills/team/scripts/check-scope.mjs *)",
+      "Bash(node .claude/skills/team/scripts/sensitive.mjs *)",
+      "Bash(node .claude/skills/team/scripts/deliverable.mjs *)",
+      "Bash(node .claude/skills/team/scripts/metrics.mjs *)",
+      "Bash(node .claude/skills/team/scripts/ci-wait.mjs *)",
+      "Bash(node .claude/skills/team/scripts/pr-comments.mjs *)",
+      "Bash(node .claude/skills/team/scripts/lessons.mjs *)",
+      "Bash(node .claude/skills/team/scripts/plan-waves.mjs *)"
     ]
   },
   "hooks": {
@@ -27,12 +37,27 @@
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-run-state.mjs\"", "timeout": 15 }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"", "timeout": 15 }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "planner|implementer|code-reviewer",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-deliverable.mjs\"", "timeout": 15 }
+        ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs\"", "timeout": 15 }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs\"", "timeout": 15 },
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"", "timeout": 15 }
         ]
       }
     ]
