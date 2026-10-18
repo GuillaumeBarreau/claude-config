@@ -4,22 +4,43 @@
   "expect": {
     "status": "awaiting_delivery_approval",
     "track": "standard",
-    "tasks": { "min": 1, "max": 3, "allStatus": "done" },
+    "tasks": {
+      "min": 1,
+      "max": 3,
+      "allStatus": "done"
+    },
     "requiresHuman": false,
-    "checks": { "tests": "passed" },
-    "gates": { "plan": "passed", "checks": "passed", "review": "passed", "delivery": "pending" },
+    "checks": {
+      "tests": "passed"
+    },
+    "gates": {
+      "plan": "passed",
+      "checks": "passed",
+      "review": "passed",
+      "delivery": "pending"
+    },
     "git": {
       "baseUnchanged": true,
       "pushed": false,
-      "commitsOnBranch": { "min": 1, "max": 3 },
+      "commitsOnBranch": {
+        "min": 1,
+        "max": 3
+      },
       "commitPerTask": true,
       "changedFiles": {
-        "include": ["src/cli.js", "test/**"],
-        "exclude": ["package.json", ".claude/**"]
+        "include": [
+          "src/cli.js",
+          "test/**"
+        ],
+        "exclude": [
+          "package.json",
+          ".claude/**"
+        ]
       }
     },
-    "files": ["review-*.json"],
-    "checkState": true,
-    "maxCostUsd": 3
+    "files": [
+      "review-*.json"
+    ],
+    "checkState": true
   }
 }

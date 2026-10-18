@@ -4,18 +4,32 @@
   "expect": {
     "status": "awaiting_delivery_approval",
     "track": "quick",
-    "checks": { "tests": "passed" },
-    "gates": { "checks": "passed", "review": "passed", "delivery": "pending" },
+    "checks": {
+      "tests": "passed"
+    },
+    "gates": {
+      "checks": "passed",
+      "review": "passed",
+      "delivery": "pending"
+    },
     "git": {
       "baseUnchanged": true,
       "pushed": false,
-      "commitsOnBranch": { "min": 1 },
+      "commitsOnBranch": {
+        "min": 1
+      },
       "changedFiles": {
-        "include": ["src/slugify.js", "test/**"],
-        "exclude": ["package.json", ".claude/**", "src/cli.js"]
+        "include": [
+          "src/slugify.js",
+          "test/**"
+        ],
+        "exclude": [
+          "package.json",
+          ".claude/**",
+          "src/cli.js"
+        ]
       }
     },
-    "checkState": true,
-    "maxCostUsd": 3
+    "checkState": true
   }
 }

@@ -99,8 +99,8 @@ ils sont signalés en conflit. Usage détaillé : [docs/USAGE.md](docs/USAGE.md)
 ## Banc d'essai
 
 `bench/` lance `/team` en vrai sur un petit projet d'essai et vérifie le résultat
-(état du run, portes, Git, fichiers, coût). Il appelle l'API :
-`npm run bench -- run <scénario|all> --yes [--budget-usd 3]`. `npm run bench -- list`,
+(état du run, portes, Git, fichiers, coût estimé). Il lance un vrai `claude -p` (usage décompté de ton abonnement, ou facturé avec une clé API) :
+`npm run bench -- run <scénario|all> --yes [--budget-usd <n>]`. `npm run bench -- list`,
 `prepare` et `verify` n'appellent jamais claude, et `npm run check` non plus.
 Scénarios : `quick-bug`, `standard-feature`, `ambiguous`, `sensitive`. Détail :
 [bench/README.md](bench/README.md).

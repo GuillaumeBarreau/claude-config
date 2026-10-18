@@ -5,7 +5,7 @@
 // Usage :
 //   node bench/run.mjs list
 //   node bench/run.mjs prepare <scénario> [--dir <dossier>]
-//   node bench/run.mjs run <scénario|all> --yes [--budget-usd 3] [--max-turns 300] [--dir <dossier>]
+//   node bench/run.mjs run <scénario|all> --yes [--budget-usd <n>] [--max-turns 300] [--dir <dossier>]
 //   node bench/run.mjs verify <scénario> <dossier>
 //
 // `run` appelle la vraie API (coût réel) : il exige --yes ou BENCH_ALLOW_API=1.
@@ -23,7 +23,7 @@ import { listScenarios, loadScenario, prepare } from './lib/prepare.mjs';
 const USAGE = `Usage :
   node bench/run.mjs list
   node bench/run.mjs prepare <scénario> [--dir <dossier>]
-  node bench/run.mjs run <scénario|all> --yes [--budget-usd 3] [--max-turns 300] [--dir <dossier>]
+  node bench/run.mjs run <scénario|all> --yes [--budget-usd <n>] [--max-turns 300] [--dir <dossier>]
   node bench/run.mjs verify <scénario> <dossier>`;
 
 const VALUE_FLAGS = ['--dir', '--budget-usd', '--max-turns'];
@@ -58,7 +58,8 @@ function report(log, name, run, result, wallMs) {
   const claude = run.claude ?? {};
   const cost = typeof claude.total_cost_usd === 'number' ? `${claude.total_cost_usd} $` : 'inconnu';
   const duration = typeof claude.duration_ms === 'number' ? claude.duration_ms : wallMs;
-  const parts = [`coût ${cost}`];
+  // Équivalent en prix API : indicateur de consommation, non facturé avec un abonnement.
+  const parts = [`coût ${cost} (estimé)`];
   if (typeof duration === 'number') parts.push(`durée ${seconds(duration)}`);
   if (typeof claude.num_turns === 'number') parts.push(`${claude.num_turns} tours`);
   log(`${name} : ${result.pass ? 'RÉUSSI' : 'ÉCHEC'} — ${parts.join(', ')}`);
@@ -90,10 +91,13 @@ function parseClaudeOutput({ code, stdout, stderr }) {
 }
 
 async function runScenario(name, { flags, deps, log }) {
-  const budgetUsd = positiveNumber(flags['--budget-usd'] ?? 3, '--budget-usd');
+  // Pas de plafond de coût par défaut (abonnement : rien n'est facturé) ; --budget-usd
+  // le réactive. --max-turns reste la protection contre un run qui s'emballe.
+  const budgetUsd = flags['--budget-usd'] === undefined ? null : positiveNumber(flags['--budget-usd'], '--budget-usd');
   const maxTurns = positiveNumber(flags['--max-turns'] ?? 300, '--max-turns', true);
   const { dir, scenario } = prepare(name, { dir: flags['--dir'] });
-  log(`${name} : projet prêt dans ${dir}, lancement de claude (budget ${budgetUsd} $)…`);
+  const limits = budgetUsd ? `plafond estimé ${budgetUsd} $` : 'sans plafond de coût';
+  log(`${name} : projet prêt dans ${dir}, lancement de claude (${limits}, ${maxTurns} tours max)…`);
   const started = Date.now();
   const output = await runClaude({
     args: claudeArgs({ request: scenario.request, budgetUsd, maxTurns }),

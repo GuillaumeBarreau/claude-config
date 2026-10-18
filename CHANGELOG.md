@@ -1,5 +1,12 @@
 # Changelog
 
+## Non publié
+
+Modifié :
+- Banc d'essai : plus de plafond de coût par défaut (seule limite : `--max-turns`) ;
+  `--budget-usd` le réactive. Le coût affiché est une estimation, non facturée avec un
+  abonnement ; les scénarios n'ont plus d'attente `maxCostUsd`.
+
 ## 0.3.0 — 2026-10-18 — Agents autonomes les uns avec les autres
 
 Planifié par un agent, implémenté en 5 lots parallèles (worktrees), intégré et relu.

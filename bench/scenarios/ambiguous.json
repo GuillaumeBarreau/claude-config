@@ -3,9 +3,14 @@
   "request": "Rendre l'outil plus rapide.",
   "expect": {
     "status": "awaiting_input",
-    "questions": { "min": 1 },
-    "git": { "baseUnchanged": true, "pushed": false, "noChanges": true },
-    "checkState": true,
-    "maxCostUsd": 3
+    "questions": {
+      "min": 1
+    },
+    "git": {
+      "baseUnchanged": true,
+      "pushed": false,
+      "noChanges": true
+    },
+    "checkState": true
   }
 }

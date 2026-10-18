@@ -13,13 +13,18 @@ ce que les tests unitaires (`npm run check`) ne voient pas.
 ```sh
 node bench/run.mjs list                                  # scénarios disponibles
 node bench/run.mjs prepare <scénario> [--dir <dossier>]  # projet d'essai prêt, sans claude
-node bench/run.mjs run <scénario|all> --yes [--budget-usd 3] [--max-turns 300] [--dir <dossier>]
+node bench/run.mjs run <scénario|all> --yes [--budget-usd <n>] [--max-turns 300] [--dir <dossier>]
 node bench/run.mjs verify <scénario> <dossier>           # revérifie un dossier, sans claude
 ```
 
-- `run` appelle la vraie API (coût réel). Sans `--yes` ni `BENCH_ALLOW_API=1`, il
-  refuse (code 2). `--budget-usd` est transmis à claude (`--max-budget-usd`) pour
-  chaque scénario : `run all` coûte jusqu'à 4 fois ce montant.
+- `run` lance un vrai `claude -p`. Sans `--yes` ni `BENCH_ALLOW_API=1`, il refuse
+  (code 2). Il utilise la connexion de ta session : avec un abonnement (sans
+  `ANTHROPIC_API_KEY`), rien n'est facturé, mais l'usage est décompté de ton
+  abonnement comme un `/team` tapé à la main ; avec une clé API, il est facturé.
+  Commence par un seul scénario (`quick-bug` est le moins coûteux).
+- Pas de plafond de coût par défaut : la seule limite est `--max-turns` (300).
+  `--budget-usd <n>` en ajoute un (`--max-budget-usd` de claude, par scénario, calculé
+  sur l'équivalent en prix API).
 - Codes de sortie : 0 tout réussi, 1 au moins une attente non tenue, 2 usage ou
   erreur (claude introuvable, scénario inconnu…).
 
@@ -57,7 +62,8 @@ claude -p "/team <demande>" --output-format json --permission-mode acceptEdits \
   verdict dans `.agent-runs/bench-report.json` (dossier ignoré par Git : il ne compte
   pas comme un changement).
 
-Rapport par scénario : RÉUSSI ou ÉCHEC, coût (`total_cost_usd`), durée, nombre de
+Rapport par scénario : RÉUSSI ou ÉCHEC, coût estimé (`total_cost_usd`, équivalent en
+prix API : un indicateur de consommation, non facturé avec un abonnement), durée, nombre de
 tours, run et statut, résumé de `metrics.jsonl` s'il existe (appels, durée et tokens
 par agent, livrables rejetés), puis chaque attente non tenue avec un message précis.
 
@@ -91,7 +97,7 @@ Un scénario est un fichier `bench/scenarios/<nom>.json` : `description`, `reque
 | `git.noChanges` | aucun fichier modifié, aucun commit |
 | `files` | motifs de fichiers attendus dans le dossier du run |
 | `checkState` | `check-state.mjs` du template accepte l'état (avec le `team.json` du projet) |
-| `maxCostUsd` | coût de claude ≤ valeur |
+| `maxCostUsd` | coût estimé de claude ≤ valeur (facultatif, aucun scénario ne l'utilise) |
 
 Une clé inconnue est signalée comme échec (faute de frappe dans un scénario).
 Fichiers modifiés = différence entre la base d'origine et la branche du run,

@@ -4,9 +4,14 @@
   "expect": {
     "status": "awaiting_plan_approval",
     "requiresHuman": true,
-    "gates": { "plan": "pending" },
-    "git": { "baseUnchanged": true, "pushed": false, "noChanges": true },
-    "checkState": true,
-    "maxCostUsd": 3
+    "gates": {
+      "plan": "pending"
+    },
+    "git": {
+      "baseUnchanged": true,
+      "pushed": false,
+      "noChanges": true
+    },
+    "checkState": true
   }
 }

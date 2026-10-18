@@ -18,12 +18,15 @@ export const BENCH_ALLOWED_TOOLS = [
 ];
 
 /** Arguments de `claude -p` : la demande d'abord, les listes variadiques à la fin. */
-export function claudeArgs({ request, budgetUsd = 3, maxTurns = 300, allowedTools = BENCH_ALLOWED_TOOLS }) {
+// Pas de plafond de coût par défaut : avec un abonnement, rien n'est facturé (l'usage
+// est décompté de l'abonnement). --max-turns reste la protection contre un run qui
+// s'emballe ; budgetUsd n'est transmis que s'il est demandé.
+export function claudeArgs({ request, budgetUsd = null, maxTurns = 300, allowedTools = BENCH_ALLOWED_TOOLS }) {
   return [
     '-p', `/team ${request}`,
     '--output-format', 'json',
     '--permission-mode', 'acceptEdits',
-    '--max-budget-usd', String(budgetUsd),
+    ...(budgetUsd ? ['--max-budget-usd', String(budgetUsd)] : []),
     '--max-turns', String(maxTurns),
     '--allowedTools', ...allowedTools,
   ];

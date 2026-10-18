@@ -315,6 +315,24 @@ test('claudeArgs et childEnv : options du banc, CLAUDECODE retiré', () => {
   assert.equal(env.PATH, 'x');
 });
 
+test('claudeArgs : aucun plafond de coût par défaut, seulement si --budget-usd est donné', () => {
+  const args = claudeArgs({ request: 'corrige le bug' });
+  assert.ok(!args.includes('--max-budget-usd'), 'pas de --max-budget-usd par défaut');
+  assert.equal(args[args.indexOf('--max-turns') + 1], '300');
+});
+
+test('run sans --budget-usd : claude lancé sans plafond, message sans montant', async () => {
+  const dir = join(tmp('bench-run-'), 'projet');
+  const out = [];
+  const { spawn, calls } = fakeSpawn((cwd) => simulateRun(cwd, 'quick'));
+  await bench(['run', 'quick-bug', '--yes', '--dir', dir], {
+    spawn, env: { PATH: process.env.PATH }, log: (l) => out.push(l), platform: 'linux',
+  });
+  assert.ok(!calls[0].args.includes('--max-budget-usd'));
+  assert.doesNotMatch(out.join('\n'), /budget \d/);
+  assert.match(out.join('\n'), /sans plafond de coût/);
+});
+
 /** spawn simulé : enregistre l'appel, exécute effect(cwd), puis rend une sortie JSON. */
 function fakeSpawn(effect = () => {}, output = { type: 'result', total_cost_usd: 0.42, duration_ms: 1234, num_turns: 7, is_error: false }) {
   const calls = [];
