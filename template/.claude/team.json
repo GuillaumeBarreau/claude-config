@@ -1,0 +1,15 @@
+{
+  "$comment": "Configuration de l'équipe d'agents pour ce projet. Appartient au projet : install.mjs la crée une fois et ne la remplace jamais. À compléter avec /team-init.",
+  "version": 1,
+  "initialized": false,
+  "baseBranch": "main",
+  "branchPrefix": "team/",
+  "commitConvention": "",
+  "maxAttempts": 2,
+  "maxClarificationRounds": 2,
+  "agents": {
+    "planner": true,
+    "code-reviewer": true
+  },
+  "checks": []
+}

@@ -1,0 +1,54 @@
+{
+  "id": "2026-10-18-exemple",
+  "title": "Exemple de run",
+  "track": "standard",
+  "status": "awaiting_plan_approval",
+  "branch": null,
+  "baseBranch": "main",
+  "createdAt": "2026-10-18T10:00:00Z",
+  "updatedAt": "2026-10-18T10:20:00Z",
+  "gates": {
+    "plan": { "status": "pending", "by": null, "at": null, "notes": "" },
+    "checks": { "status": "pending", "by": null, "at": null, "notes": "" },
+    "review": { "status": "pending", "by": null, "at": null, "notes": "" },
+    "delivery": { "status": "pending", "by": null, "at": null, "notes": "" }
+  },
+  "openQuestions": [],
+  "answers": [],
+  "attempts": { "clarification": 0 },
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Exemple de tâche",
+      "description": "Ce que la tâche doit produire.",
+      "type": "feature",
+      "priority": "P1",
+      "complexity": "S",
+      "acceptanceCriteria": ["AC1"],
+      "dependsOn": [],
+      "files": ["src/exemple.py"],
+      "agent": "implementer",
+      "tests": ["Test unitaire du cas nominal et du cas vide"],
+      "risks": [],
+      "requiresHuman": false,
+      "status": "draft",
+      "attempts": 0,
+      "validation": { "checks": "not_run", "review": null, "evidence": [] }
+    }
+  ],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "pytest",
+      "required": true,
+      "status": "not_run",
+      "at": null,
+      "summary": ""
+    }
+  ],
+  "blockedReason": null,
+  "log": [
+    { "at": "2026-10-18T10:00:00Z", "actor": "orchestrator", "event": "run_created", "detail": "Piste standard" },
+    { "at": "2026-10-18T10:20:00Z", "actor": "planner", "event": "plan_delivered", "detail": "1 tâche" }
+  ]
+}
