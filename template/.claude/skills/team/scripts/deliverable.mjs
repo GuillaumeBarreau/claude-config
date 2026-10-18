@@ -4,13 +4,16 @@
 // check-deliverable s'en sert pour refuser un livrable mal formé ; ce CLI est le repli
 // quand le hook ne s'est pas déclenché.
 //
-// Usage : node deliverable.mjs <fichier> --agent <planner|implementer|code-reviewer>
+// Usage : node deliverable.mjs <fichier> --agent <type>   (types : AGENTS ci-dessous)
 // Sortie : 0 livrable valide, 1 invalide (erreurs sur stderr), 2 usage ou lecture.
 
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const AGENTS = ['planner', 'implementer', 'code-reviewer'];
+// Développeurs : réalisent une tâche du plan (task.agent), même livrable que l'implementer,
+// mêmes interdits (guard-files). Source unique des noms d'agents de l'équipe.
+export const DEVELOPERS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation'];
+export const AGENTS = ['planner', ...DEVELOPERS, 'code-reviewer'];
 const STATUSES = ['ready', 'blocked', 'needs_input'];
 const QUESTION_KINDS = ['technical', 'product'];
 const PLANNER_MODES = ['spec', 'plan', 'spec+plan', 'consult', 'split'];
@@ -161,7 +164,7 @@ export function validateDeliverable(d, agentType) {
   });
   if (d.status === 'needs_input' && !questions.length) errors.push('questions : au moins une question quand status vaut needs_input');
   if (agentType === 'planner') checkPlanner(errors, d);
-  if (agentType === 'implementer') checkImplementer(errors, d);
+  if (DEVELOPERS.includes(agentType)) checkImplementer(errors, d);
   if (agentType === 'code-reviewer') checkReviewer(errors, d);
   return errors;
 }
@@ -171,7 +174,7 @@ function main(argv) {
   const agentAt = argv.indexOf('--agent');
   const agent = agentAt > -1 ? argv[agentAt + 1] : undefined;
   if (!file || file.startsWith('--') || !agent) {
-    console.error('usage : node deliverable.mjs <fichier> --agent <planner|implementer|code-reviewer>');
+    console.error(`usage : node deliverable.mjs <fichier> --agent <${AGENTS.join('|')}>`);
     return 2;
   }
   let text;

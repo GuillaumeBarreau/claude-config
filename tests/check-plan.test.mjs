@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { checkPlan } from '../template/.claude/skills/team/scripts/check-plan.mjs';
-import { checkState } from '../template/.claude/skills/team/scripts/check-state.mjs';
+import { checkState, planDigest } from '../template/.claude/skills/team/scripts/check-state.mjs';
 import { templateCopy, writeFile } from './helpers.mjs';
 
 const RUN = '2026-10-18-exemple';
@@ -159,6 +159,34 @@ test('check-plan : dépendances aval reportées sur les tâches d\'un redécoupa
 test('check-plan : piste quick sans objet', () => {
   const { root, runDir } = setup({ track: 'quick', tasks: [] });
   assert.equal(checkPlan(runDir, { projectDir: root }).status, 'n/a');
+});
+
+test('check-plan : agent de la tâche connu et activé dans team.json, absent = implementer', () => {
+  const both = (a, b) => [task('T1', { agent: a }), task('T2', { acceptanceCriteria: ['AC2'], agent: b })];
+  assert.equal(errorsFor({ tasks: both('implementer-backend', 'implementer-frontend') }), '');
+  assert.equal(errorsFor({ tasks: both('documentation', undefined) }), '');
+  assert.match(errorsFor({ tasks: both('implementer', 'code-reviewer') }), /T2 : agent « code-reviewer » inconnu/);
+  assert.match(errorsFor({ tasks: both('implementer-mobile', 'implementer') }), /T1 : agent « implementer-mobile » inconnu/);
+
+  const { root, runDir } = setup({ tasks: both('implementer-frontend', 'implementer') });
+  const teamPath = join(root, '.claude/team.json');
+  const team = JSON.parse(readFileSync(teamPath, 'utf8'));
+  team.agents['implementer-frontend'] = false;
+  writeFileSync(teamPath, JSON.stringify(team));
+  assert.match(checkPlan(runDir, { projectDir: root }).errors.join('\n'), /T1 : agent « implementer-frontend » désactivé dans team\.json/);
+});
+
+test('check-plan : agent recopié fidèlement de plan.md et couvert par l\'empreinte (absent = implementer)', () => {
+  const planned = [task('T1', { acceptanceCriteria: ['AC1', 'AC2'], agent: 'implementer-backend' })];
+  const drift = [task('T1', { acceptanceCriteria: ['AC1', 'AC2'], agent: 'implementer' })];
+  assert.match(errorsFor({ tasks: planned, stateTasks: drift }), /T1 : plan\.md et state\.json diffèrent sur agent/);
+  const implicit = [task('T1', { acceptanceCriteria: ['AC1', 'AC2'], agent: undefined })];
+  assert.equal(errorsFor({ tasks: implicit, stateTasks: drift }), '');
+
+  // Empreinte : changer l'agent après --record invalide planCheck ; implementer implicite
+  // ou explicite donne la même empreinte (runs existants inchangés).
+  assert.notEqual(planDigest(planned), planDigest(drift));
+  assert.equal(planDigest(implicit), planDigest(drift));
 });
 
 const cli = (root, ...args) => spawnSync(process.execPath, [join(root, '.claude/skills/team/scripts/check-plan.mjs'), ...args],

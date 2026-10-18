@@ -10,6 +10,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { DEVELOPERS } from './deliverable.mjs';
+
 /** Lignes valides de metrics.jsonl (les lignes abîmées sont ignorées). */
 export function readMetrics(runDir) {
   const path = join(runDir, 'metrics.jsonl');
@@ -47,7 +49,7 @@ export function summarize(state, lines) {
     a.tokens += num(l.tokens);
     if (!l.task) continue;
     const t = (byTask[l.task] ??= { implementerCalls: 0, models: [] });
-    if (l.agent === 'implementer') t.implementerCalls += 1;
+    if (DEVELOPERS.includes(l.agent)) t.implementerCalls += 1;
     if (l.model && !t.models.includes(l.model)) t.models.push(l.model);
   }
   return { run: state?.id ?? null, wallMs, turns, byAgent, byTask };
@@ -63,7 +65,7 @@ function format(s) {
     out.push(`- ${name} : ${a.calls} appel(s), ${minutes(a.durationMs)}, ${a.toolUses} outil(s), ${a.tokens} tokens, ${a.rejections} livrable(s) rejeté(s)`);
   }
   for (const [task, t] of Object.entries(s.byTask)) {
-    out.push(`- ${task} : ${t.implementerCalls} appel(s) implementer, modèles ${t.models.join(', ') || '—'}`);
+    out.push(`- ${task} : ${t.implementerCalls} appel(s) développeur, modèles ${t.models.join(', ') || '—'}`);
   }
   return out.join('\n');
 }

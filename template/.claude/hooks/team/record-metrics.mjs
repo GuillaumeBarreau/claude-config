@@ -10,9 +10,10 @@ import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { AGENTS } from '../../skills/team/scripts/deliverable.mjs';
 import { CLAUDE_DIR, PROJECT_DIR, readPayload } from './lib.mjs';
 
-export const TEAM_AGENTS = ['planner', 'implementer', 'code-reviewer'];
+export const TEAM_AGENTS = AGENTS;
 const TERMINAL = ['done', 'cancelled'];
 
 export const projectDir = () => process.env.CLAUDE_PROJECT_DIR || PROJECT_DIR;

@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { evaluateCommand } from '../template/.claude/hooks/team/guard-bash.mjs';
-import { evaluateFile } from '../template/.claude/hooks/team/guard-files.mjs';
+import { evaluateFile, GUARDED_AGENTS } from '../template/.claude/hooks/team/guard-files.mjs';
+import { DEVELOPERS } from '../template/.claude/skills/team/scripts/deliverable.mjs';
 import { templateCopy, writeFile } from './helpers.mjs';
 
 /** Lance un hook d'une copie installée du template avec un payload JSON sur stdin. */
@@ -112,6 +113,18 @@ test('guard-files : modifier les garde-fous demande un accord ; l\'implementer n
   assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/team.json' }, impl)?.decision, 'deny');
   assert.equal(evaluateFile('Edit', { file_path: '/projet/src/a.ts' }, impl), null);
   assert.equal(evaluateFile('Read', { file_path: '/projet/.agent-runs/r/plan.md' }, impl), null);
+});
+
+test('guard-files : les implementers spécialisés et documentation ne touchent ni .claude/ ni .agent-runs/', () => {
+  const root = '/projet';
+  for (const agentType of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+    const ctx = { projectDir: root, agentType };
+    assert.equal(evaluateFile('Write', { file_path: '/projet/.agent-runs/r/state.json' }, ctx)?.decision, 'deny', agentType);
+    assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/team.json' }, ctx)?.decision, 'deny', agentType);
+    assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/skills/conventions-backend/SKILL.md' }, ctx)?.decision, 'deny', agentType);
+    assert.equal(evaluateFile('Edit', { file_path: '/projet/src/a.ts' }, ctx), null, agentType);
+  }
+  assert.deepEqual(GUARDED_AGENTS, DEVELOPERS);
 });
 
 test('guard-files (hook) : décision JSON, entrée illisible bloquée', () => {

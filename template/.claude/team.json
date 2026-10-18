@@ -11,6 +11,9 @@
   "agents": {
     "planner": true,
     "implementer": true,
+    "implementer-backend": true,
+    "implementer-frontend": true,
+    "documentation": true,
     "code-reviewer": true
   },
   "pullRequest": {

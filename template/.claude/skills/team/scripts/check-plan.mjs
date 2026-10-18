@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Vérifie un plan avant la porte 1 : ce que la revue du plan demandait à l'orchestrateur
 // devient un contrôle déterministe. Croise spec.md (critères d'acceptation), le bloc des
-// tâches de plan.md et les tâches de state.json.
+// tâches de plan.md et les tâches de state.json, et l'agent de chaque tâche (team.json).
 //
 // Usage (depuis la racine du projet) :
 //   node .claude/skills/team/scripts/check-plan.mjs .agent-runs/<id> [--record]
@@ -15,15 +15,26 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { checkState, dependencyErrors, isPlanTask, planDigest } from './check-state.mjs';
+import { DEVELOPERS } from './deliverable.mjs';
 import { sensitiveFiles, teamSensitivePaths } from './sensitive.mjs';
 
 const CLAUDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const COMPARED = ['id', 'files', 'newFiles', 'acceptanceCriteria', 'dependsOn', 'requiresHuman'];
+const COMPARED = ['id', 'files', 'newFiles', 'acceptanceCriteria', 'dependsOn', 'requiresHuman', 'agent'];
 const FREE_FILES_ORIGINS = ['ci', 'pr-review'];
 
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''));
 const list = (v) => (Array.isArray(v) ? v : []);
 const filesOf = (t) => [...list(t.files), ...list(t.newFiles)];
+
+/** Agents désactivés dans <projet>/.claude/team.json (agents.<nom>: false). */
+function disabledAgents(projectDir) {
+  try {
+    const team = readJson(join(projectDir, '.claude', 'team.json'));
+    return Object.entries(team.agents ?? {}).filter(([, on]) => on === false).map(([name]) => name);
+  } catch {
+    return [];
+  }
+}
 
 /** Contenu d'une section « ## <titre> » (jusqu'au titre ## suivant), ou null. */
 function section(markdown, title) {
@@ -69,7 +80,8 @@ function pathProblem(path) {
   return null;
 }
 
-const normalized = (task, key) => JSON.stringify(key === 'newFiles' ? (task.newFiles ?? []) : task[key]);
+const DEFAULTS = { newFiles: [], agent: 'implementer' };
+const normalized = (task, key) => JSON.stringify(task[key] ?? DEFAULTS[key]);
 
 /**
  * dependsOn de plan.md et de state.json concordent-ils ? Une dépendance vers une tâche
@@ -174,6 +186,13 @@ export function checkPlan(runDir, { projectDir = dirname(CLAUDE_DIR), sensitiveP
     if (isPlanTask(t) && !FREE_FILES_ORIGINS.includes(t.origin) && !filesOf(t).length) {
       errors.push(`${t.id} : aucune entrée dans files ni newFiles`);
     }
+  }
+  // Agent de chaque tâche : un développeur connu et activé (absent = implementer).
+  const disabled = disabledAgents(projectDir);
+  for (const t of tasks) {
+    const agent = t.agent ?? 'implementer';
+    if (!DEVELOPERS.includes(agent)) errors.push(`${t.id} : agent « ${agent} » inconnu (${DEVELOPERS.join(', ')})`);
+    else if (disabled.includes(agent)) errors.push(`${t.id} : agent « ${agent} » désactivé dans team.json (agents) — choisis un agent activé`);
   }
   errors.push(...dependencyErrors(tasks));
 

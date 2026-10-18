@@ -86,6 +86,8 @@ export function planDigest(tasks) {
       acceptanceCriteria: t.acceptanceCriteria,
       dependsOn: t.dependsOn,
       requiresHuman: t.requiresHuman,
+      // Agent hors défaut seulement : l'empreinte des runs antérieurs (implementer) ne change pas.
+      ...(t.agent && t.agent !== 'implementer' ? { agent: t.agent } : {}),
     }))
     .sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
   return createHash('sha256').update(JSON.stringify(reduced)).digest('hex');

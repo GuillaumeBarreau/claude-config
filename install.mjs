@@ -7,8 +7,8 @@
 // - Un manifeste (.claude/claude-config.manifest.json) garde l'empreinte de chaque
 //   fichier installé. À la mise à jour, un fichier modifié localement n'est jamais
 //   écrasé : il est signalé en conflit (sauf --force).
-// - Les fichiers qui appartiennent au projet (team.json) sont créés une fois, puis
-//   jamais remplacés.
+// - Les fichiers qui appartiennent au projet (team.json, skills de conventions) sont
+//   créés une fois, puis jamais remplacés ni supprimés, même avec --force.
 // - settings.json est fusionné : les hooks de l'équipe (commandes sous
 //   .claude/hooks/team/) et ses permissions remplacent ceux de l'installation
 //   précédente ; tout le reste du fichier du projet est conservé.
@@ -23,7 +23,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_DIR = dirname(fileURLToPath(import.meta.url));
 export const MANIFEST = 'claude-config.manifest.json';
-export const PROJECT_OWNED = ['team.json'];
+export const PROJECT_OWNED = [
+  'team.json',
+  'skills/conventions-backend/SKILL.md',
+  'skills/conventions-frontend/SKILL.md',
+];
 export const MERGED = 'settings.json';
 const isTeamHook = (hook) => typeof hook?.command === 'string' && hook.command.includes('.claude/hooks/team/');
 export const GITIGNORE_ENTRY = '.agent-runs/';

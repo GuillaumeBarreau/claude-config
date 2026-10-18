@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Hook SubagentStop (planner, implementer, code-reviewer) : le message final de l'agent
+// Hook SubagentStop (agents de l'équipe : AGENTS de deliverable.mjs) : le message final de l'agent
 // doit se terminer par un livrable JSON conforme à skills/team/deliverables.md.
 // - Invalide : l'agent est renvoyé au travail avec les erreurs (decision: block), une
 //   seule fois (stop_hook_active) ; au second échec il s'arrête et le rejet est mesuré.

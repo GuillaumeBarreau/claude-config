@@ -65,7 +65,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "planner|implementer|code-reviewer",
+        "matcher": "planner|implementer|implementer-backend|implementer-frontend|documentation|code-reviewer",
         "hooks": [
           {
             "type": "command",

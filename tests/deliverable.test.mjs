@@ -135,6 +135,21 @@ test('check-deliverable : sans bloc, texte après le bloc, approve avec constat 
   assert.ok(!existsSync(join(root, '.agent-runs/r1/review-T2-1.json')));
 });
 
+test('livrable des développeurs spécialisés et de documentation : schéma implementer, agent = le sien', () => {
+  for (const agent of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+    assert.deepEqual(validateDeliverable(implementer({ agent }), agent), [], agent);
+    assert.match(validateDeliverable(implementer({ agent, files: [] }), agent).join('\n'), /files/, agent);
+    assert.match(validateDeliverable(implementer(), agent).join('\n'), /agent/, agent);
+  }
+  const root = templateCopy();
+  const dir = runDir(root);
+  const ko = runHook(root, 'check-deliverable.mjs', stop('implementer-backend', 'Fini, sans bloc.'));
+  assert.equal(ko.json?.decision, 'block');
+  const ok = runHook(root, 'check-deliverable.mjs', stop('documentation', block(implementer({ agent: 'documentation' }))));
+  assert.equal(ok.stdout.trim(), '');
+  assert.ok(readdirSync(join(dir, 'deliverables')).some((f) => /-documentation-T1\.json$/.test(f)));
+});
+
 test('check-deliverable : jamais de block si stop_hook_active ; le rejet est mesuré', () => {
   const root = templateCopy();
   const dir = runDir(root);
@@ -205,7 +220,7 @@ test('settings.json : check-deliverable sur SubagentStop, record-metrics sur Age
   const settings = JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'settings.json'), 'utf8'));
   const commandsOf = (event, matcher) => (settings.hooks[event] ?? [])
     .filter((g) => (matcher === undefined ? !g.matcher : g.matcher === matcher)).flatMap((g) => g.hooks.map((h) => h.command));
-  assert.ok(commandsOf('SubagentStop', 'planner|implementer|code-reviewer').some((c) => c.includes('check-deliverable.mjs')));
+  assert.ok(commandsOf('SubagentStop', 'planner|implementer|implementer-backend|implementer-frontend|documentation|code-reviewer').some((c) => c.includes('check-deliverable.mjs')));
   assert.ok(commandsOf('PostToolUse', 'Agent|Task').some((c) => c.includes('record-metrics.mjs')));
   const stopCommands = commandsOf('Stop');
   assert.ok(stopCommands.some((c) => c.includes('record-metrics.mjs')));
@@ -217,10 +232,17 @@ test('settings.json : check-deliverable sur SubagentStop, record-metrics sur Age
 });
 
 test('agents : bloc final renvoyé à deliverables.md, corps ≤ 100 lignes, validate sans avertissement d\'agent', () => {
-  for (const name of ['planner', 'implementer', 'code-reviewer']) {
-    const { body } = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents', `${name}.md`), 'utf8'));
-    assert.match(body, /deliverables\.md/, name);
+  for (const name of ['planner', 'implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'code-reviewer']) {
+    const { data, body } = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents', `${name}.md`), 'utf8'));
+    // Le renvoi au livrable est dans le corps, ou dans la procédure commune préchargée.
+    const preloaded = data.skills.map((s) => readFileSync(join(TEMPLATE_CLAUDE, 'skills', s, 'SKILL.md'), 'utf8')).join('\n');
+    assert.match(`${body}\n${preloaded}`, /deliverables\.md/, name);
     assert.ok(body.split(/\r?\n/).length <= 100, `${name} : corps trop long`);
+  }
+  // Procédure commune une seule fois : les trois implementers la préchargent.
+  for (const name of ['implementer', 'implementer-backend', 'implementer-frontend']) {
+    const { data } = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents', `${name}.md`), 'utf8'));
+    assert.deepEqual(data.skills.slice(0, 2), ['team-rules', 'team-implementer'], name);
   }
   assert.ok(existsSync(join(TEMPLATE_CLAUDE, 'skills/team/deliverables.md')));
   const { errors, warnings } = validate(TEMPLATE_ROOT);

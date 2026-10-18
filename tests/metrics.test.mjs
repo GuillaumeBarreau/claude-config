@@ -88,6 +88,18 @@ test('record-metrics : rien sans run actif de la session, ni pour un agent hors 
   assert.equal(runHook(root, 'record-metrics.mjs', 'pas du json').code, 0);
 });
 
+test('record-metrics et metrics : les développeurs spécialisés et documentation sont mesurés', () => {
+  const root = templateCopy();
+  const dir = makeRun(root, 'r1', { status: 'executing', sessionId: 'S1' });
+  for (const agent of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+    runHook(root, 'record-metrics.mjs', agentCall({ input: { subagent_type: agent, description: `${agent} T2 #1` } }));
+  }
+  const lines = readLines(dir);
+  assert.deepEqual(lines.map((l) => l.agent), ['implementer-backend', 'implementer-frontend', 'documentation']);
+  assert.deepEqual(lines.map((l) => l.model), ['sonnet', 'sonnet', 'sonnet']);
+  assert.equal(summarize({ id: 'r1', createdAt: '2026-10-18T10:00:00Z' }, lines).byTask.T2.implementerCalls, 3);
+});
+
 test('metrics : agrège durée murale, tours, agents et tâches', () => {
   const state = { id: 'r1', createdAt: '2026-10-18T10:00:00Z' };
   const lines = [

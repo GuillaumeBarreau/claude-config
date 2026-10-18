@@ -84,8 +84,30 @@ test('team.json appartient au projet : jamais remplacé, même avec --force', ()
   run();
   const path = join(projectDir, '.claude/team.json');
   writeFileSync(path, '{"initialized": true, "projet": "réglé"}');
-  assert.deepEqual(byAction(run({ force: true }), 'keep'), ['team.json']);
+  assert.ok(byAction(run({ force: true }), 'keep').includes('team.json'));
   assert.match(readFileSync(path, 'utf8'), /réglé/);
+});
+
+test('skills de conventions : créées une fois, appartiennent au projet, jamais remplacées même avec --force', () => {
+  const { templateDir, projectDir, run } = setup();
+  const owned = ['skills/conventions-backend/SKILL.md', 'skills/conventions-frontend/SKILL.md'];
+  const first = run();
+  for (const rel of owned) assert.ok(byAction(first, 'add').includes(rel), rel);
+  const manifest = JSON.parse(readFileSync(join(projectDir, '.claude', MANIFEST), 'utf8'));
+  for (const rel of owned) assert.ok(!(rel in manifest.files), `${rel} ne doit pas être dans le manifeste`);
+
+  const local = join(projectDir, '.claude', owned[0]);
+  writeFileSync(local, '---\nname: conventions-backend\ndescription: Conventions du projet\nuser-invocable: false\n---\nExpress, tests Jest.\n');
+  writeFile(join(templateDir, owned[0]), `${readFileSync(join(templateDir, owned[0]), 'utf8')}\nNouveau défaut.\n`);
+  const again = run({ force: true });
+  assert.deepEqual(byAction(again, 'keep').sort(), [...owned, 'team.json'].sort());
+  assert.match(readFileSync(local, 'utf8'), /Express/);
+
+  // Retirées du template : jamais supprimées du projet.
+  rmSync(join(templateDir, 'skills/conventions-backend'), { recursive: true });
+  run();
+  assert.ok(existsSync(local));
+  assert.deepEqual(validate(projectDir).errors, []);
 });
 
 test('fichier retiré du template : supprimé s\'il est intact, conservé s\'il est modifié', () => {

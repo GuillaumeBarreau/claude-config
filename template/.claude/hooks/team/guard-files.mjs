@@ -3,7 +3,8 @@
 // garde-fous eux-mêmes.
 //
 // - deny : lire ou écrire un fichier de secrets (.env, clé privée) ;
-// - deny : l'agent implementer écrit dans .claude/ ou .agent-runs/ (l'état du run et la
+// - deny : un agent développeur (implementer, implementer-backend, implementer-frontend,
+//   documentation) écrit dans .claude/ ou .agent-runs/ (l'état du run et la
 //   configuration appartiennent à l'orchestrateur et au projet) ;
 // - ask  : modifier les réglages ou les hooks de l'équipe — un agent ne désactive pas
 //   ses propres garde-fous sans l'accord de l'utilisateur.
@@ -15,6 +16,9 @@ import { emitDecision, failClosed, isSecretPath, PROJECT_DIR, readPayload } from
 
 const HOOK = 'guard-files';
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'];
+// Copie de DEVELOPERS (skills/team/scripts/deliverable.mjs), gardée ici pour que ce
+// garde-fou ne dépende que de lib.mjs ; un test vérifie que les deux listes concordent.
+export const GUARDED_AGENTS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation'];
 
 const projectRelative = (projectDir, path) => {
   const rel = relative(resolve(projectDir), resolve(projectDir, path)).split('\\').join('/');
@@ -36,8 +40,8 @@ export function evaluateFile(toolName, input, ctx) {
   for (const path of paths) {
     const rel = projectRelative(ctx.projectDir, path);
     if (rel === null) continue;
-    if (ctx.agentType === 'implementer' && /^(\.claude|\.agent-runs)(\/|$)/.test(rel)) {
-      return { decision: 'deny', reason: `l'implementer ne modifie ni .claude/ ni .agent-runs/ (${rel}) : c'est le rôle de l'orchestrateur` };
+    if (GUARDED_AGENTS.includes(ctx.agentType) && /^(\.claude|\.agent-runs)(\/|$)/.test(rel)) {
+      return { decision: 'deny', reason: `l'agent ${ctx.agentType} ne modifie ni .claude/ ni .agent-runs/ (${rel}) : c'est le rôle de l'orchestrateur` };
     }
     if (/^\.claude\/(settings(\.local)?\.json|hooks\/team\/)/.test(rel)) {
       return { decision: 'ask', reason: `modification des garde-fous de l'équipe (${rel}) : accord explicite requis` };
