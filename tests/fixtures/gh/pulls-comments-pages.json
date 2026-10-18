@@ -1,0 +1,36 @@
+[
+  [
+    {
+      "author_association": "OWNER",
+      "body": "Nom de variable trompeur : `rows` contient des objets, pas des lignes.",
+      "html_url": "https://github.com/acme/app/pull/42#discussion_r501",
+      "id": 501,
+      "line": 12,
+      "original_line": 12,
+      "path": "src/export.js",
+      "user": { "login": "alice", "type": "User" }
+    },
+    {
+      "author_association": "NONE",
+      "body": "Mise à jour de dépendance disponible.",
+      "html_url": "https://github.com/acme/app/pull/42#discussion_r502",
+      "id": 502,
+      "line": 1,
+      "original_line": 1,
+      "path": "package.json",
+      "user": { "login": "renovate[bot]", "type": "Bot" }
+    }
+  ],
+  [
+    {
+      "author_association": "COLLABORATOR",
+      "body": "Ce fichier a disparu ? \"Quote\" et ] crochet pour tester l'analyse.",
+      "html_url": "https://github.com/acme/app/pull/42#discussion_r503",
+      "id": 503,
+      "line": null,
+      "original_line": 4,
+      "path": "src/absent.js",
+      "user": { "login": "carol", "type": "User" }
+    }
+  ]
+]

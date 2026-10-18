@@ -47,6 +47,21 @@ Demande aussi le niveau d'autonomie (`autonomy`) : `supervised` (défaut, l'util
 valide chaque plan) ou `autonomous` (l'orchestrateur valide seul les plans sans
 tâche sensible ; la livraison reste toujours humaine).
 
+Propose enfin les réglages facultatifs, en partant des valeurs actuelles de
+`team.json` (une clé absente garde le défaut des scripts) :
+
+| Clé               | Défaut                                 | Quand la changer                                                                 |
+| ----------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| `ci`              | `enabled: true`, `timeoutMinutes: 30`, `maxFixRounds: 2` | `enabled: false` sans GitHub Actions (aucun `.github/workflows/`) ou sans `gh` ; `timeoutMinutes` d'après la durée réelle de la CI |
+| `prComments`      | `allowedAssociations: ["OWNER", "MEMBER", "COLLABORATOR"]` | Ajouter `CONTRIBUTOR` seulement si les contributeurs externes sont de confiance |
+| `escalationModel` | `"opus"`                               | Modèle utilisé quand une tâche échoue avec le modèle par défaut                   |
+| `sensitivePaths`  | `[]`                                   | Motifs (`*`, `**`, `?`) de zones sensibles propres au projet ; ils s'ajoutent aux zones déjà sensibles (dépendances, migrations, CI, auth, secrets), sans jamais en retirer |
+| `lessons`         | `enabled: true`, `maxEntries: 30`      | `enabled: false` pour ne pas garder de leçons entre les runs                      |
+| `backlog`         | `label: "agent-ready"`, `draftPr: false`, `maxIssues: 3`, `maxBudgetUsd: 5` | Traitement planifié des issues ; `draftPr: true` autorise l'ouverture de PR brouillons |
+
+Pour `ci`, vérifie que `gh auth status` réussit ; sinon propose `enabled: false` ou
+dis comment authentifier `gh`. `parallel` est réservé : laisse `enabled: false`.
+
 ## 4. Enregistrer
 
 Après un accord explicite, mets à jour `.claude/team.json` :
@@ -64,6 +79,7 @@ Après un accord explicite, mets à jour `.claude/team.json` :
 }
 ```
 
-Conserve les autres clés existantes (`agents`, `maxAttempts`…). Termine par un rappel :
+N'écris que les clés validées par l'utilisateur ; conserve les autres clés existantes
+(`agents`, `maxAttempts`, `pullRequest`, `ci`…). Termine par un rappel :
 `team.json` appartient au projet et peut être commité ; `.agent-runs/` est ignoré
 par Git.

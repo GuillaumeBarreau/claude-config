@@ -6,7 +6,8 @@
 // - deny : jamais acceptable pour un agent (commit ou push sur la branche de base,
 //   contournement des hooks Git, lecture de secrets, suppression massive) ;
 // - ask  : possible avec l'accord de l'utilisateur, demandé par Claude Code (push, PR,
-//   publication, actions destructives, ajout de dépendance).
+//   publication, actions destructives, ajout de dépendance, écriture sur GitHub :
+//   commentaire, revue, relance de CI, appel `gh api` modifiant).
 //
 // Filet de sécurité, pas bac à sable : une commande assez détournée lui échappe.
 
@@ -66,6 +67,37 @@ function checkGit(sub, args, ctx) {
   }
 }
 
+// gh : lire (runs, journaux, PR, API en GET) reste libre ; écrire sur GitHub au nom de
+// l'utilisateur (commentaire, revue, relance, appel API modifiant) demande un accord.
+const GH_WRITES = /^(run (rerun|cancel)|issue (comment|edit|close)|pr (comment|review|edit))\b/;
+const GH_API_FIELD = /^(-f|-F|--field|--raw-field|--input)(=|$)|^-[fF]./;
+
+function checkGhApi(args) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    let method = null;
+    if (a === '-X' || a === '--method') method = args[i + 1] ?? '';
+    else if (/^-X./.test(a)) method = a.slice(2);
+    else if (a.startsWith('--method=')) method = a.slice('--method='.length);
+    if (method !== null && method.toUpperCase() !== 'GET') return ask(`gh api --method ${method} : écriture sur GitHub, accord explicite requis`);
+    if (GH_API_FIELD.test(a)) return ask(`gh api ${a} : envoi de données à GitHub, accord explicite requis`);
+  }
+  return null;
+}
+
+function checkGh(rest) {
+  // -R/--repo peut précéder ou suivre la sous-commande : on l'ignore pour la reconnaître.
+  const args = rest.filter((a, i) => !['-R', '--repo'].includes(a) && !['-R', '--repo'].includes(rest[i - 1]) && !a.startsWith('--repo='));
+  const line = args.join(' ');
+  if (/^pr merge\b/.test(line)) return deny('la fusion d\'une PR reste humaine : un agent ne fusionne jamais, même en auto-merge');
+  if (/^(pr (create|close|ready)|release (create|delete|upload)|repo delete)/.test(line)) {
+    return ask(`gh ${args.slice(0, 2).join(' ')} : accord explicite requis`);
+  }
+  if (GH_WRITES.test(line)) return ask(`gh ${args.slice(0, 2).join(' ')} : écriture sur GitHub au nom de l'utilisateur, accord explicite requis`);
+  if (args[0] === 'api') return checkGhApi(args.slice(1));
+  return null;
+}
+
 function checkSegment(segment, ctx) {
   const tokens = tokensOf(segment);
   const [cmd] = tokens;
@@ -75,11 +107,9 @@ function checkSegment(segment, ctx) {
     return tokens[i] ? checkGit(tokens[i], tokens.slice(i + 1), ctx) : null;
   }
   const rest = tokens.slice(1);
-  if ((cmd === 'gh' && /^pr merge\b/.test(rest.join(' '))) || (cmd === 'glab' && /^mr merge\b/.test(rest.join(' ')))) {
+  if (cmd === 'gh') return checkGh(rest);
+  if (cmd === 'glab' && /^mr merge\b/.test(rest.join(' '))) {
     return deny('la fusion d\'une PR reste humaine : un agent ne fusionne jamais, même en auto-merge');
-  }
-  if (cmd === 'gh' && /^(pr (create|close|ready)|release (create|delete|upload)|repo delete)/.test(rest.join(' '))) {
-    return ask(`gh ${rest.slice(0, 2).join(' ')} : accord explicite requis`);
   }
   if (cmd === 'glab' && /^mr create/.test(rest.join(' '))) return ask('glab mr create : accord explicite requis');
   if (['npm', 'pnpm', 'yarn', 'cargo', 'poetry'].includes(cmd) && rest[0] === 'publish') return ask(`${cmd} publish : accord explicite requis`);
