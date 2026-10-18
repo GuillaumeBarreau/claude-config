@@ -2,4 +2,4 @@ exemple/
 node_modules/
 .agent-runs/
 # Copie installée de la configuration (npm run dogfood) : régénérée, jamais commitée.
-.claude/
+/.claude/
