@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -222,4 +222,10 @@ test('check-plan (CLI) : 1 sur un plan en erreur (enregistré failed), 2 sur un 
   assert.equal(cli(root, '.agent-runs/inconnu').status, 2);
   const quick = setup({ track: 'quick', tasks: [] });
   assert.equal(cli(quick.root, `.agent-runs/${RUN}`).status, 0);
+});
+
+test('check-plan : agent dont le fichier a été supprimé du projet → indisponible', () => {
+  const { root, runDir } = setup({ tasks: [task('T1', { acceptanceCriteria: ['AC1', 'AC2'], agent: 'implementer-frontend' })] });
+  rmSync(join(root, '.claude/agents/implementer-frontend.md'));
+  assert.match(checkPlan(runDir, { projectDir: root }).errors.join('\n'), /T1 : agent « implementer-frontend » absent du projet \(\.claude\/agents\/implementer-frontend\.md\)/);
 });

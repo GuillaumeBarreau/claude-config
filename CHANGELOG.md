@@ -37,6 +37,11 @@ Modifié :
 - `team.json` : les trois nouveaux agents activés. `/team-init` propose les
   conventions et désactive un spécialiste sans objet.
 
+Corrigé après relecture :
+- `check-plan` refuse un agent dont le fichier a été supprimé du projet ;
+  `validate.mjs` refuse `agents.implementer: false` (agent par défaut et des tâches
+  CI/PR) ; l'agent `documentation` lit `CLAUDE.md` et les leçons.
+
 Pas fait :
 - Planner non séparé en PO et architecte (ADR 0007).
 - Aucun run réel avec les spécialistes ; le banc n'a pas de scénario dédié.

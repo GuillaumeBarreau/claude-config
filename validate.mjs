@@ -319,6 +319,9 @@ function checkTeamConfig(claudeDir, agents, errors, warnings) {
     errors.push(`team.json : « autonomy » doit valoir ${AUTONOMY.join(' ou ')} (actuel : ${config.autonomy})`);
   }
   checkPullRequest(config.pullRequest, errors);
+  if (config.agents?.implementer === false) {
+    errors.push('team.json : agent « implementer » ne peut pas être désactivé (agent par défaut des tâches mixtes et des tâches CI/PR)');
+  }
   checkOptionalKeys(config, errors, warnings);
   for (const [name, enabled] of Object.entries(config.agents ?? {})) {
     if (enabled === true && !agents.has(name)) errors.push(`team.json : agent « ${name} » activé mais agents/${name}.md absent`);

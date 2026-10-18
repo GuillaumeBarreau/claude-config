@@ -253,3 +253,12 @@ test('team.json : parallel.enabled à true est réservé (avertissement)', () =>
 test('team.json : escalationModel accepte un identifiant claude-*', () => {
   assert.deepEqual(validate(withTeam({ escalationModel: 'claude-opus-5-5' })).errors, []);
 });
+
+test('team.json : implementer ne peut pas être désactivé (agent par défaut et de repli)', () => {
+  const root = templateCopy();
+  const path = join(root, '.claude/team.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  config.agents.implementer = false;
+  writeFileSync(path, JSON.stringify(config));
+  assert.match(errorsOf(root), /team\.json : agent « implementer » ne peut pas être désactivé/);
+});

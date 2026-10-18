@@ -193,6 +193,9 @@ export function checkPlan(runDir, { projectDir = dirname(CLAUDE_DIR), sensitiveP
     const agent = t.agent ?? 'implementer';
     if (!DEVELOPERS.includes(agent)) errors.push(`${t.id} : agent « ${agent} » inconnu (${DEVELOPERS.join(', ')})`);
     else if (disabled.includes(agent)) errors.push(`${t.id} : agent « ${agent} » désactivé dans team.json (agents) — choisis un agent activé`);
+    else if (!existsSync(join(projectDir, '.claude', 'agents', `${agent}.md`))) {
+      errors.push(`${t.id} : agent « ${agent} » absent du projet (.claude/agents/${agent}.md) — choisis un agent installé`);
+    }
   }
   errors.push(...dependencyErrors(tasks));
 
