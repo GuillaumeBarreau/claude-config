@@ -18,7 +18,7 @@ const HOOK = 'guard-files';
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'];
 // Copie de DEVELOPERS (skills/team/scripts/deliverable.mjs), gardée ici pour que ce
 // garde-fou ne dépende que de lib.mjs ; un test vérifie que les deux listes concordent.
-export const GUARDED_AGENTS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation'];
+export const GUARDED_AGENTS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'expert'];
 
 const projectRelative = (projectDir, path) => {
   const rel = relative(resolve(projectDir), resolve(projectDir, path)).split('\\').join('/');

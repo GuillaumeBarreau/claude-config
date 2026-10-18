@@ -14,7 +14,8 @@
     "implementer-backend": true,
     "implementer-frontend": true,
     "documentation": true,
-    "code-reviewer": true
+    "code-reviewer": true,
+    "expert": true
   },
   "pullRequest": {
     "draft": true,
@@ -30,7 +31,11 @@
     "maxFixRounds": 2
   },
   "prComments": {
-    "allowedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+    "allowedAssociations": [
+      "OWNER",
+      "MEMBER",
+      "COLLABORATOR"
+    ]
   },
   "lessons": {
     "enabled": true,

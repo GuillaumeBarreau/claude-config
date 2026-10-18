@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 — 2026-10-18 — Agent expert et .gitignore à l'installation
+
+Ajouté :
+- Agent `expert` (Fable, effort max) pour la logique complexe : algorithmes,
+  concurrence, machines à états, précision, bugs de cause inconnue. Choisi par le
+  planner pour ces tâches, et dernier recours en correction (après l'escalade sur
+  `escalationModel`, avant le redécoupage). Mêmes garde-fous que les autres
+  développeurs. ADR 0008.
+- Installation : si `.claude/` n'est pas déjà dans le `.gitignore` du projet (sous
+  une forme quelconque), l'installeur demande s'il faut l'ajouter ; ajout en fin de
+  fichier, sans rien modifier d'autre. Options `--ignore-claude` et
+  `--no-ignore-claude` pour les scripts ; sans terminal, rien n'est ajouté.
+
+Modifié :
+- Le test du matcher SubagentStop compare la liste complète des agents (un agent
+  oublié échapperait au contrôle du livrable).
+
 ## 0.5.1 — 2026-10-18 — Bonnes pratiques web
 
 Ajouté (prompts) :

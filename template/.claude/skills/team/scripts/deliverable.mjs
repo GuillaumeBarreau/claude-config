@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 
 // Développeurs : réalisent une tâche du plan (task.agent), même livrable que l'implementer,
 // mêmes interdits (guard-files). Source unique des noms d'agents de l'équipe.
-export const DEVELOPERS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation'];
+export const DEVELOPERS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'expert'];
 export const AGENTS = ['planner', ...DEVELOPERS, 'code-reviewer'];
 const STATUSES = ['ready', 'blocked', 'needs_input'];
 const QUESTION_KINDS = ['technical', 'product'];

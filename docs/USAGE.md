@@ -71,11 +71,11 @@ une mise à jour de l'équipe ne les remplace jamais.
    tâche sensible et t'affiche le résumé.
 4. **Exécution**, sans interruption : l'arbre de travail doit être propre ; une branche
    `team/<id>` est créée depuis la branche de base. Pour chaque tâche, son développeur
-   (`implementer` par défaut, `implementer-backend`, `implementer-frontend` ou
-   `documentation`, choisi par le planner) code et teste, `check-scope` compare les fichiers modifiés au plan, `run-checks`
+   (`implementer` par défaut, `implementer-backend`, `implementer-frontend`,
+   `documentation`, ou `expert` pour la logique complexe, choisi par le planner) code et teste, `check-scope` compare les fichiers modifiés au plan, `run-checks`
    lance les contrôles, `code-reviewer` relit, puis l'orchestrateur commite la tâche.
    Une question technique d'un développeur est tranchée par le planner, sans te
-   déranger. En cas d'échec : correction sur un modèle plus fort (`escalationModel`),
+   déranger. En cas d'échec : correction sur un modèle plus fort (`escalationModel`), puis par l'agent `expert`,
    puis redécoupage de la tâche, puis le run se bloque et te rend la main.
 5. **Porte 4** : contrôles finaux, puis `pr.md` rédigé selon les
    [conventions de PR](../template/.claude/skills/team/pr-conventions.md) et vérifié

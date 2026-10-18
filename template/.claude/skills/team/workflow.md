@@ -47,6 +47,7 @@ activé dans `team.json`) :
 | `implementer-backend`  | tous les fichiers côté serveur                             | + `conventions-backend` (propre au projet)      |
 | `implementer-frontend` | tous les fichiers côté interface                           | + `conventions-frontend` (propre au projet)     |
 | `documentation`        | documentation seule (README, docs/, CHANGELOG, ADR)        | `team-rules`                                    |
+| `expert`               | logique complexe (algorithme, concurrence, états, précision, bug de cause inconnue), et dernier recours en correction | `team-rules`, `team-implementer` |
 
 Tous rendent le livrable du schéma `implementer` (avec leur propre nom dans
 `agent`) et sont soumis aux mêmes règles : `guard-files` leur refuse `.claude/` et
@@ -105,6 +106,9 @@ dépendances sont `done`.
 7. **Correction**, `attempts` + 1 :
    - 1re correction : le même agent (`task.agent`) avec `model: <escalationModel>` dans l'appel
      (défaut `opus`), événement `escalated` ;
+   - correction suivante (si `maxAttempts` le permet) : **`expert`** reprend la tâche
+     avec tout son historique (constats, journaux, livrables précédents), s'il est
+     activé ; événement `escalated` (détail « expert ») ;
    - au-delà de `maxAttempts` : **redécoupage**, une seule fois. `planner` en mode
      `split` avec la tâche, ses constats et ses journaux. Les nouvelles tâches
      (`T<n>.<m>`, `origin: "split"`, `splitFrom`) remplacent l'originale et
@@ -165,7 +169,7 @@ GitHub : skill `/team-backlog` et `docs/BACKLOG.md`.
 | Hook                | Quand                            | Effet |
 | ------------------- | -------------------------------- | ----- |
 | `guard-bash`        | Avant Bash / PowerShell          | **Refuse** commit ou push sur la branche de base, fusion de PR (`gh pr merge`, `glab mr merge`, `gh api` qui écrit sur `/pulls/<n>/merge` ou mutation `mergePullRequest`), `Co-Authored-By` dans un commit, `--no-verify`, lecture de `.env`, `rm -rf` massif. **Demande l'accord** pour push, publication, tag, `reset --hard`, `clean -f`, réécriture d'historique, ajout de dépendance, et toute commande `gh` qui n'est pas une lecture (`view`, `list`, `status`, `diff`, `checks`, `run watch`, `search`, `auth status`, `gh api` en GET sans champ). Préfixes (`(`, `&`, `env`, `sudo`, `$(…)`) et chemins (`gh.exe`) normalisés avant contrôle |
-| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture d'un développeur (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`) dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
+| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture d'un développeur (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`, `expert`) dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
 | `check-run-state`   | Après Edit / Write               | Relance `check-state` sur chaque `state.json` écrit ; une erreur revient au modèle |
 | `check-deliverable` | Fin d'un sous-agent de l'équipe  | **Renvoie l'agent au travail**, une fois, si son bloc JSON final manque ou est invalide ; enregistre `deliverables/` et `review-*.json` ; n'écrit jamais `state.json` |
 | `record-metrics`    | Après Agent, et Stop             | Ajoute une mesure à `metrics.jsonl` ; ne bloque jamais |
@@ -240,7 +244,8 @@ Le script juge un état, pas son historique : un changement de piste se trace da
 - `maxClarificationRounds` (défaut 2) tours de questions, puis `blocked` ou
   poursuite avec des hypothèses explicites validées par l'utilisateur.
 - `maxAttempts` (défaut 2) tours de correction par tâche, dont le premier sur
-  `escalationModel`, puis un seul redécoupage, puis tâche `failed` et run `blocked`.
+  `escalationModel`, le suivant par `expert`, puis un seul redécoupage, puis tâche
+  `failed` et run `blocked`.
 - 2 consultations du planner par tâche au plus.
 - Toujours une intervention humaine pour : action destructive, push, PR, fusion,
   dépendance, migration, secret, permission supplémentaire.

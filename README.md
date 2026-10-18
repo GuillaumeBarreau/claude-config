@@ -21,6 +21,7 @@ restent humains.**
 | `implementer-backend`        | Sous-agent, Sonnet (Opus en escalade)  | Code et tests d'une tâche côté serveur (API, données, sécurité) |
 | `implementer-frontend`       | Sous-agent, Sonnet (Opus en escalade)  | Code et tests d'une tâche côté interface (composants, accessibilité, états) |
 | `documentation`              | Sous-agent, Sonnet                     | README, docs/, CHANGELOG, ADR d'après le diff |
+| `expert`                     | Sous-agent, Fable (le plus capable), effort max | Logique complexe (algorithme, concurrence, états, bug de cause inconnue), dernier recours en correction |
 | `code-reviewer` (relecture + QA) | Sous-agent, lecture seule, Opus    | Verdict et constats           |
 
 Le planner attribue chaque tâche à un développeur selon ses fichiers (tout back,
@@ -38,7 +39,7 @@ les autres agents le lisent tel quel, sans reformulation.
 /team <demande> → planner (spec + plan) → check-plan → porte 1
   → pour chaque tâche : développeur de la tâche → check-scope → run-checks → code-reviewer → commit
       question technique → planner (consultation) ; question produit → toi
-      échec → correction sur un modèle plus fort, puis redécoupage, puis blocage
+      échec → correction sur un modèle plus fort, puis par l'agent expert, puis redécoupage, puis blocage
   → run-checks final → pr.md vérifié par check-pr → porte 4 (push / PR brouillon avec ton accord)
   → ci-wait : CI rouge → tâche corrective ; commentaires de PR → tâches de correction
   → leçons du run, mesures
@@ -75,7 +76,7 @@ Des hooks Node (Windows compris), fusionnés dans le `.claude/settings.json` du 
 | Hook                | Effet |
 | ------------------- | ----- |
 | `guard-bash`        | Refuse commit ou push sur la branche de base, fusion de PR, `Co-Authored-By`, `--no-verify`, lecture de `.env`, `rm -rf` massif. Demande ton accord pour push, PR, publication, actions destructives, nouvelle dépendance, écriture sur GitHub |
-| `guard-files`       | Refuse les fichiers de secrets. Les développeurs (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`) n'écrivent ni dans `.claude/` ni dans `.agent-runs/`. Demande ton accord pour modifier les garde-fous |
+| `guard-files`       | Refuse les fichiers de secrets. Les développeurs (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`, `expert`) n'écrivent ni dans `.claude/` ni dans `.agent-runs/`. Demande ton accord pour modifier les garde-fous |
 | `check-run-state`   | Vérifie chaque `state.json` écrit : un état qui contourne une porte revient au modèle |
 | `check-deliverable` | Renvoie un agent au travail si son livrable JSON manque ou est invalide |
 | `record-metrics`    | Mesures par run (appels, durée, outils, rejets) |

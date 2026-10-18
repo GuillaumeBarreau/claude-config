@@ -64,9 +64,12 @@ côté se lit dans l'arborescence et dans les skills `conventions-backend` /
 | tous côté serveur (API, services, données, jobs)      | `implementer-backend`  |
 | tous côté interface (composants, pages, styles)       | `implementer-frontend` |
 | uniquement de la documentation (README, docs/, CHANGELOG, ADR) | `documentation` |
+| logique complexe : algorithme, concurrence, machine à états, calcul de précision, bug de cause inconnue | `expert` |
 | mixtes, outillage, configuration, ou doute            | `implementer`          |
 
-Un spécialiste désactivé dans `team.json` est remplacé par `implementer`. Si le
+`expert` (modèle le plus capable, le plus coûteux) seulement quand la difficulté est
+dans la logique elle-même, jamais pour du volume. Un spécialiste désactivé dans
+`team.json` est remplacé par `implementer`. Si le
 changement modifie un comportement visible, une API ou la configuration, le plan
 comprend une tâche `type: "documentation"` (agent `documentation` s'il est activé,
 sinon `implementer`), qui dépend des tâches qu'elle documente.

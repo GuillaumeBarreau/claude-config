@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { extractDeliverable, validateDeliverable } from '../template/.claude/skills/team/scripts/deliverable.mjs';
+import { AGENTS, extractDeliverable, validateDeliverable } from '../template/.claude/skills/team/scripts/deliverable.mjs';
 import { parseFrontmatter, validate } from '../validate.mjs';
 import { TEMPLATE_CLAUDE, TEMPLATE_ROOT, templateCopy, writeFile } from './helpers.mjs';
 
@@ -220,7 +220,10 @@ test('settings.json : check-deliverable sur SubagentStop, record-metrics sur Age
   const settings = JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'settings.json'), 'utf8'));
   const commandsOf = (event, matcher) => (settings.hooks[event] ?? [])
     .filter((g) => (matcher === undefined ? !g.matcher : g.matcher === matcher)).flatMap((g) => g.hooks.map((h) => h.command));
-  assert.ok(commandsOf('SubagentStop', 'planner|implementer|implementer-backend|implementer-frontend|documentation|code-reviewer').some((c) => c.includes('check-deliverable.mjs')));
+  // Le matcher couvre exactement les agents de l'équipe : un agent oublié échapperait au contrôle.
+  const subagentStop = (settings.hooks.SubagentStop ?? []).find((g) => g.hooks.some((h) => h.command.includes('check-deliverable.mjs')));
+  assert.ok(subagentStop, 'check-deliverable déclaré sur SubagentStop');
+  assert.deepEqual(subagentStop.matcher.split('|').sort(), [...AGENTS].sort());
   assert.ok(commandsOf('PostToolUse', 'Agent|Task').some((c) => c.includes('record-metrics.mjs')));
   const stopCommands = commandsOf('Stop');
   assert.ok(stopCommands.some((c) => c.includes('record-metrics.mjs')));
@@ -232,7 +235,7 @@ test('settings.json : check-deliverable sur SubagentStop, record-metrics sur Age
 });
 
 test('agents : bloc final renvoyé à deliverables.md, corps ≤ 100 lignes, validate sans avertissement d\'agent', () => {
-  for (const name of ['planner', 'implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'code-reviewer']) {
+  for (const name of AGENTS) {
     const { data, body } = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents', `${name}.md`), 'utf8'));
     // Le renvoi au livrable est dans le corps, ou dans la procédure commune préchargée.
     const preloaded = data.skills.map((s) => readFileSync(join(TEMPLATE_CLAUDE, 'skills', s, 'SKILL.md'), 'utf8')).join('\n');
