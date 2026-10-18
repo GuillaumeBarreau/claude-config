@@ -256,7 +256,9 @@ export function collectRun(dir, { git = gitRunner(dir) } = {}) {
   if (initialBaseHead && branchExists(runBranch)) {
     for (const f of lines(git('diff', '--name-only', initialBaseHead, `refs/heads/${runBranch}`))) changed.add(f);
   }
-  for (const f of lines(git('diff', '--name-only', 'HEAD'))) changed.add(f);
+  // Arbre de travail comparé à la base d'origine : commits de la branche courante
+  // (même la base, si on y a commité) et changements non commités.
+  for (const f of lines(git('diff', '--name-only', initialBaseHead ?? 'HEAD'))) changed.add(f);
   for (const f of lines(git('ls-files', '--others', '--exclude-standard'))) changed.add(f);
   const changedFiles = [...changed].filter((f) => !f.startsWith('.agent-runs/')).sort();
 
