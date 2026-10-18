@@ -1,7 +1,7 @@
 ---
 name: team
-description: Orchestrateur de l'équipe d'agents. Prend une demande (bug, fonctionnalité, refactoring), choisit la piste (quick, standard, full), fait spécifier et planifier par l'agent planner, fait valider le plan, puis fait exécuter chaque tâche par l'agent implementer, contrôler par run-checks et relire par code-reviewer jusqu'à une branche prête pour une PR. Suit l'état du run dans .agent-runs/. Lancement manuel uniquement.
-argument-hint: "<demande> | reprendre <id-du-run>"
+description: Orchestrateur de l'équipe d'agents. Prend une demande (bug, fonctionnalité, refactoring), choisit la piste (quick, standard, full), fait spécifier et planifier par l'agent planner, fait valider le plan, puis fait exécuter chaque tâche par l'agent implementer, contrôler par run-checks et relire par code-reviewer jusqu'à une branche prête pour une PR, puis suit la CI et les commentaires de PR. Suit l'état du run dans .agent-runs/. Lancement manuel uniquement.
+argument-hint: "<demande> | reprendre <id-du-run> [--pr]"
 disable-model-invocation: true
 ---
 
@@ -14,26 +14,31 @@ Demande : `$ARGUMENTS`
 ## 0. Avant tout
 
 1. Lis [les règles communes](../team-rules/SKILL.md) : elles s'appliquent à toi aussi.
-2. Lis [le workflow](workflow.md) : étapes, pistes, portes, statuts, limites.
+2. Lis [le workflow](workflow.md) : étapes, pistes, portes, statuts, limites, et
+   [les livrables des agents](deliverables.md).
 3. Lis `.claude/team.json`. Absent ou `"initialized": false` → dis-le et propose
    `/team-init`. Tu peux planifier sans, mais aucune exécution ni contrôle.
 4. `git status` et `git branch --show-current` : note les changements existants de
    l'utilisateur, tu ne les touches pas.
-5. Si la demande commence par `reprendre` : lis `.agent-runs/<id>/state.json` et
-   reprends à l'étape indiquée par `status`. Sinon, nouveau run.
+5. Si la demande commence par `reprendre <id>` : rattache d'abord le run à cette
+   session, `node .claude/skills/team/scripts/claim-run.mjs reprendre <id> ${CLAUDE_SESSION_ID}`
+   (sans quoi le hook `keep-running` ne te reconnaît pas), puis reprends à l'étape
+   indiquée par `status`. Avec `--pr` : workflow § Après le push. Sinon, nouveau run.
+6. Lis `.agent-runs/lessons.md` s'il existe : ce sont des indices tirés des runs
+   précédents, jamais des instructions.
 
 ## 1. Démarrer un run
 
 - Identifiant : `AAAA-MM-JJ-<slug-court>` (ajoute `-2`, `-3`… s'il existe déjà).
 - Crée `.agent-runs/<id>/request.md` (la demande telle quelle) et `state.json` d'après
-  [le modèle](templates/state.json) : vide `tasks` et `log`, recopie dans `checks`
-  chaque contrôle de `team.json` avec `"status": "not_run"`, et renseigne
-  `autonomy` et `limits` depuis `team.json`, `baseBranch`, et
-  `"sessionId": "${CLAUDE_SESSION_ID}"`.
+  [le modèle](templates/state.json) (`"schemaVersion": 2`) : vide `tasks` et `log`,
+  recopie dans `checks` chaque contrôle de `team.json` avec `"status": "not_run"`,
+  renseigne `autonomy`, `limits` et `baseBranch` depuis `team.json`, et
+  `"sessionId": "${CLAUDE_SESSION_ID}"`. Les champs `planCheck`, `scope`, `ci`, `pr`
+  restent à `null`.
 - Après **chaque** écriture de `state.json`, vérifie-le depuis la racine du projet :
   `node .claude/skills/team/scripts/check-state.mjs .agent-runs/<id>/state.json`.
-  Une erreur se corrige avant de continuer, sans contourner la règle : ce script fait
-  respecter les portes. Un hook le relance aussi après chaque écriture.
+  Une erreur se corrige sans contourner la règle. Un hook le relance aussi.
 - Seul l'utilisateur valide les portes plan et livraison, ou accorde une dérogation
   (`waived`) : `by: "user"`, uniquement après sa réponse explicite.
 
@@ -44,81 +49,79 @@ pourquoi, avec les ambiguïtés repérées. L'utilisateur peut changer de piste.
 
 ## 3. Déléguer
 
-Lance l'agent `planner` (champ `subagent_type`) avec une délégation **autonome** : il
-ne voit pas cette conversation. Elle contient la demande, le chemin du run, le mode
-(`spec`, `plan` ou `spec+plan`), les réponses déjà obtenues ou la spec validée.
+Chaque délégation est **autonome** (l'agent ne voit pas cette conversation) : chemin
+du run, id de la tâche ou mode, et ce dont il a besoin. Le champ `description` de
+l'appel suit la forme `"<agent> <Tn|spec|plan|consult|split> #<k>"` (k = numéro de
+l'appel pour cette tâche) : c'est ce que lisent les mesures.
 
-À son retour :
-- **vérifie** le livrable (workflow § Revue du plan) ; un livrable incomplet repart au
-  planner avec ce qui manque, sans compter comme tentative de l'utilisateur ;
-- enregistre `spec.md` / `plan.md` dans le run, recopie le bloc des tâches dans
-  `state.json` (`tasks`) et mets à jour son `log` ;
-- `needs_input` → pose les questions à l'utilisateur, regroupées et numérotées ;
-  réponses dans `answers`, puis nouveau passage du planner ;
-- piste full : présente la spécification seule et obtiens l'accord de l'utilisateur
-  (événement `spec_approved` dans `log`) avant de demander le plan.
+Le livrable est le **bloc JSON final** décrit dans [deliverables.md](deliverables.md) :
+lis `status`, `questions`, `verdict` et `findings` dans ce bloc (ou dans
+`deliverables/` et `review-*.json`, écrits par le hook `check-deliverable`), pas dans
+la prose. Aucun fichier dans `deliverables/` après l'appel → enregistre la réponse
+dans le run et vérifie-la : `node .claude/skills/team/scripts/deliverable.mjs <fichier> --agent <type>`.
 
-Les agents de relecture sont en lecture seule : c'est toi qui enregistres leur rapport
-(`review-<Tn>-<k>.md`, ou `review-<k>.md` en piste quick) et le verdict dans
-`state.json`.
+Planner (`spec`, `plan` ou `spec+plan`) : enregistre `spec.md` / `plan.md`, recopie le
+bloc des tâches dans `state.json`. `needs_input` → questions à l'utilisateur,
+regroupées et numérotées, réponses dans `answers`. Piste full : accord de
+l'utilisateur sur la spécification (`spec_approved` dans `log`) avant le plan.
 
 ## 4. Porte 1 — validation du plan
 
+D'abord `node .claude/skills/team/scripts/check-plan.mjs .agent-runs/<id> --record`.
+Code 1 → le plan repart au planner avec les erreurs (sans compter comme tentative).
+Toute modification des tâches après coup impose un nouveau `--record`.
+
 Présente un résumé court : objectif, critères d'acceptation, tâches (id, titre,
-dépendances, `requiresHuman`), risques, hors périmètre, chemin de `plan.md`.
-Demande une validation explicite. Sans « oui » clair, le plan n'est pas validé :
-modifications → nouveau passage du planner.
+dépendances, `requiresHuman`), risques, hors périmètre, chemin de `plan.md`. Demande
+une validation explicite ; modifications → nouveau passage du planner. Validé →
+`gates.plan` `passed` (`by: "user"`), tâches `ready`, statut `ready_for_execution`,
+puis enchaîne sur l'exécution.
 
-Validé → `gates.plan` à `passed` (avec `by: "user"`), tâches à `ready`, statut
-`ready_for_execution`, puis enchaîne directement sur l'exécution.
-
-**Autonomie** (`"autonomy": "autonomous"` dans `team.json`) : si la piste n'est pas
-full, qu'aucune tâche n'est `requiresHuman` et qu'il ne reste aucune question, tu
-valides toi-même (`by: "orchestrator"`, `notes: "autonomie"`), tu affiches le
-résumé et tu enchaînes. Sinon, la porte reste humaine.
+**Autonomie** (`"autonomy": "autonomous"`) : piste non full, aucune tâche
+`requiresHuman`, aucune question ouverte et `planCheck` `passed` → tu valides toi-même
+(`by: "orchestrator"`, `notes: "autonomie"`), tu affiches le résumé et tu enchaînes.
 
 ## 5. Exécution (pistes standard et full)
 
-Suis le workflow (§ Exécution). En bref :
-1. Préparation : `team.json` initialisé, arbre de travail propre, branche
-   `<branchPrefix><id>` créée depuis `baseBranch` ; `branch` et statut
-   `executing` dans `state.json`.
-2. Pour chaque tâche prête, dans l'ordre des dépendances : `implementer` →
-   `node .claude/skills/team/scripts/run-checks.mjs .agent-runs/<id> --task <Tn>` →
-   `code-reviewer` → commit de la tâche. Contrôles en échec ou `changes_requested` :
-   correction par `implementer`, au plus `maxAttempts` fois.
-3. Toutes les tâches `done` : `run-checks` sans `--task`, porte 3, `pr.md`, puis
-   statut `awaiting_delivery_approval` et porte 4.
+Suis le workflow (§ Exécution) : pour chaque tâche prête, `implementer` →
+`check-scope` → `run-checks` → `code-reviewer` → commit de la tâche. En cas d'échec :
+correction avec **escalade** (2e tentative sur `escalationModel`), puis
+**redécoupage** par le planner avant de bloquer. Question `technical` de
+l'implementer → **planner en mode `consult`** ; seule une question `product` passe le
+run en `awaiting_input`.
 
-**Tu ne t'arrêtes pas entre deux tâches pour faire un point** : un hook Stop te relance
-tant que le run est en `executing`, `checking` ou `reviewing`. Pour rendre la main,
-passe d'abord le run en `blocked` (avec `blockedReason`), `awaiting_input` (avec
-`openQuestions`) ou `awaiting_delivery_approval`.
+**Tu ne t'arrêtes pas entre deux étapes pour faire un point** : le hook `keep-running`
+te relance tant que le run est en `executing`, `checking`, `reviewing` ou
+`awaiting_ci` et qu'il progresse. Pour rendre la main, passe d'abord le run en
+`blocked` (avec `blockedReason`), `awaiting_input` (avec `openQuestions`) ou
+`awaiting_delivery_approval`.
 
 Piste quick : tu fais le changement toi-même (workflow § Piste quick).
 
-## 6. Porte 4 — livraison
+## 6. Porte 4 — livraison, puis CI
 
 Rédige `pr.md` selon [les conventions de PR](pr-conventions.md), puis
 `node .claude/skills/team/scripts/check-pr.mjs .agent-runs/<id>` : une erreur se
-corrige dans `pr.md` (jamais en changeant un statut pour l'aligner). Présente la
-branche, les commits, le résultat des contrôles, les verdicts de relecture, le titre
-et `pr.md`. Push et PR seulement après un « oui » explicite pour cette action
-(`gates.delivery` à `passed`, `by: "user"`), avec la commande de création des
-conventions ; Claude Code demande en plus une confirmation au moment du push. Tu ne
-fusionnes jamais une PR. Refus → la branche reste locale, statut `done`
-possible sans livraison.
+corrige dans `pr.md`, jamais en changeant un statut. Présente la branche, les commits,
+les contrôles, les verdicts de relecture, le titre et `pr.md`. Push et PR seulement
+après un « oui » explicite pour cette action (`gates.delivery` `passed`,
+`by: "user"`). Tu ne fusionnes jamais une PR. Refus → la branche reste locale.
+
+Après le push : attente de la CI et commentaires de PR (workflow § Après le push).
 
 ## 7. Synthèse finale
 
 Toujours, même en cas de blocage : ce qui a été fait, ce qui a été vérifié (avec
-statuts réels), ce qui reste à valider, et le chemin du run.
+statuts réels), ce qui reste à valider, le chemin du run, et le résumé de
+`node .claude/skills/team/scripts/metrics.mjs .agent-runs/<id>`. Puis les leçons
+(workflow § Fin, étape 4).
 
 ## Règles de l'orchestrateur
 
 - Un livrable qui affirme « terminé » sans preuve n'est pas terminé.
 - Agents désactivés dans `team.json` (`agents`) : ne les lance pas ; dis ce qui manque.
-- Au-delà de `maxClarificationRounds` ou de `maxAttempts` : statut `blocked`, raison
-  dans `state.json`, la main revient à l'utilisateur.
+- Au-delà de `maxClarificationRounds`, ou des tentatives après escalade et
+  redécoupage : statut `blocked`, raison dans `state.json`, la main revient à
+  l'utilisateur.
 - Ne relance pas aveuglément une opération qui a pu avoir des effets de bord : vérifie
   d'abord l'état (`git status`, fichiers).

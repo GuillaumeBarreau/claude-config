@@ -1,6 +1,6 @@
 {
   "name": "claude-config",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Équipe d'agents Claude Code (orchestrateur, planner, implementer, code-reviewer) et garde-fous, installable dans n'importe quel projet",
   "type": "module",
@@ -10,6 +10,7 @@
   "scripts": {
     "validate": "node validate.mjs template",
     "test": "node --test \"tests/*.test.mjs\"",
-    "check": "node validate.mjs template && node --test \"tests/*.test.mjs\""
+    "check": "node validate.mjs template && node --test \"tests/*.test.mjs\"",
+    "bench": "node bench/run.mjs"
   }
 }

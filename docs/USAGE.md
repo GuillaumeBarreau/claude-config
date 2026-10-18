@@ -42,31 +42,47 @@ enregistre dans `.claude/team.json` après ton accord.
 /team Le bouton « Exporter » plante quand la liste est vide
 /team Ajouter un export CSV des sessions, filtrable par date
 /team reprendre 2026-10-18-export-csv
+/team reprendre 2026-10-18-export-csv --pr     # traiter les commentaires de la PR
 ```
 
 1. L'orchestrateur crée le run dans `.agent-runs/<id>/` et annonce la piste.
-2. `planner` rend la spécification et le plan ; s'il manque une information, tu reçois
-   des questions numérotées.
+2. `planner` rend la spécification et le plan ; `check-plan` le vérifie (critères
+   couverts, fichiers, dépendances, zones sensibles). S'il manque une information
+   produit, tu reçois des questions numérotées.
 3. **Porte 1** : tu valides le plan par un « oui » explicite, ou tu demandes des
    modifications. En mode `autonomous`, l'orchestrateur valide seul les plans sans
    tâche sensible et t'affiche le résumé.
 4. **Exécution**, sans interruption : l'arbre de travail doit être propre ; une branche
    `team/<id>` est créée depuis la branche de base. Pour chaque tâche, `implementer`
-   code et teste, `run-checks.mjs` lance les contrôles, `code-reviewer` relit, puis
-   l'orchestrateur commite la tâche. Contrôles en échec ou constats bloquants :
-   correction, au plus `maxAttempts` fois, puis le run se bloque et te rend la main.
+   code et teste, `check-scope` compare les fichiers modifiés au plan, `run-checks`
+   lance les contrôles, `code-reviewer` relit, puis l'orchestrateur commite la tâche.
+   Une question technique de l'implementer est tranchée par le planner, sans te
+   déranger. En cas d'échec : correction sur un modèle plus fort (`escalationModel`),
+   puis redécoupage de la tâche, puis le run se bloque et te rend la main.
 5. **Porte 4** : contrôles finaux, puis `pr.md` rédigé selon les
    [conventions de PR](../template/.claude/skills/team/pr-conventions.md) et vérifié
    par `check-pr.mjs` (titre, sections, statuts conformes à `state.json`, critères
    d'acceptation). Push et PR en brouillon seulement avec ton accord (Claude Code te le
    redemande au moment du push). La fusion reste à toi : un agent ne fusionne jamais.
+6. **Après le push** : l'orchestrateur attend la CI GitHub Actions (`ci-wait`). Verte
+   ou absente : le run est terminé. Rouge : il crée une tâche corrective `CI<n>`, la
+   traite et te redemande l'accord pour pousser (au plus `ci.maxFixRounds` fois).
+   Sans GitHub Actions ou sans `gh` authentifié : `"ci": { "enabled": false }`.
+7. **Fin** : synthèse avec les mesures du run, et quelques leçons enregistrées dans
+   `.agent-runs/lessons.md`, relues par les agents aux runs suivants.
+
+Pour faire traiter une relecture de PR : `/team reprendre <id> --pr`. Seuls les
+commentaires des OWNER, MEMBER et COLLABORATOR comptent (réglable :
+`prComments.allowedAssociations`), sans les bots. Les agents ne commentent ni ne
+répondent sur GitHub sans ton accord.
 
 Piste quick : l'orchestrateur fait le changement lui-même, puis contrôles, relecture et
 porte 4.
 
 Pendant l'exécution, des hooks te demandent ton accord si un agent tente un push, une
-PR, une action destructive ou l'ajout d'une dépendance ; ils refusent tout commit sur
-la branche de base et toute lecture de `.env`.
+PR, une action destructive, l'ajout d'une dépendance ou une écriture sur GitHub ; ils
+refusent tout commit sur la branche de base, toute fusion de PR et toute lecture de
+`.env`.
 
 ## Relire un run
 
@@ -76,7 +92,10 @@ la branche de base et toute lecture de `.env`.
 | `spec.md`     | Objectif, critères d'acceptation, hors périmètre, questions |
 | `plan.md`     | Solution, impacts, risques, tâches                        |
 | `state.json`  | Piste, statut, portes, tâches, contrôles, journal         |
-| `review-<Tn>-<k>.md` | Verdicts de `code-reviewer`, par tâche et par tour |
+| `review-<Tn>-<k>.json` | Verdicts et constats de `code-reviewer`, par tâche et par tour |
+| `deliverables/` | Livrable JSON de chaque appel d'agent (écrit par le hook `check-deliverable`) |
+| `metrics.jsonl` | Mesures : appels d'agents, durées, outils, tours, livrables rejetés |
+| `ci/*.log`, `pr-comments-<k>.json` | Journaux de CI en échec, commentaires de PR retenus |
 | `checks/*.log`| Sortie complète de chaque contrôle (`run-checks.mjs`)     |
 | `pr.md`       | Description de PR préparée                                |
 | `pr-body.md`  | Corps de PR (sans le titre) écrit par `check-pr.mjs`, passé à `gh pr create --body-file` |
@@ -85,6 +104,20 @@ Vérifier un état à la main :
 `node .claude/skills/team/scripts/check-state.mjs .agent-runs/<id>/state.json`.
 Relancer les contrôles d'un run :
 `node .claude/skills/team/scripts/run-checks.mjs .agent-runs/<id>`.
+
+| Commande (depuis la racine du projet) | Usage |
+| ------------------------------------- | ----- |
+| `node .claude/skills/team/scripts/metrics.mjs .agent-runs/<id> [--json]` | Durée, tours, appels par agent, rejets |
+| `node .claude/skills/team/scripts/check-plan.mjs .agent-runs/<id>` | Revérifier un plan |
+| `node .claude/skills/team/scripts/sensitive.mjs <chemin>...` | Code 1 si un chemin est une zone sensible |
+| `node .claude/skills/team/scripts/plan-waves.mjs .agent-runs/<id>` | Tâches qui pourraient tourner en parallèle (information) |
+| `node .claude/skills/team/scripts/lessons.mjs show` | Leçons enregistrées |
+
+## Traiter les issues sans surveillance
+
+La skill `/team-backlog` simule le traitement des issues GitHub marquées
+`agent-ready`. Le mode réel se lance hors session et se planifie : voir
+[BACKLOG.md](BACKLOG.md).
 
 ## Régler le comportement
 
@@ -100,6 +133,12 @@ Dans `.claude/team.json` du projet :
 | `maxAttempts`            | Tours de correction avant blocage (2)                    |
 | `maxClarificationRounds` | Tours de questions avant blocage (2)                     |
 | `agents`                 | Activer ou désactiver un agent (`false` = jamais lancé)  |
+| `escalationModel`        | Modèle de l'implementer pour la correction (`opus`)      |
+| `sensitivePaths`         | Motifs glob ajoutés aux zones sensibles (jamais retirés)  |
+| `ci`                     | `enabled`, `timeoutMinutes`, `maxFixRounds` (tours de correction de CI) |
+| `prComments`             | `allowedAssociations` : auteurs dont les commentaires sont traités |
+| `lessons`                | `enabled`, `maxEntries` (30) |
+| `backlog`                | `label` (`agent-ready`), `draftPr` (`false`), `maxIssues`, `maxBudgetUsd` |
 
 ## Modifier les règles ou ajouter un agent
 

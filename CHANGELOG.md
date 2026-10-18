@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.3.0 — 2026-10-18 — Agents autonomes les uns avec les autres
+
+Planifié par un agent, implémenté en 5 lots parallèles (worktrees), intégré et relu.
+
+Ajouté :
+- **Vérifications déterministes** (ADR 0004) : `check-plan` (critères couverts,
+  recopie fidèle, fichiers, dépendances, zones sensibles ⇒ `requiresHuman`, écrit
+  `planCheck`), `check-scope` (fichiers réellement modifiés comparés au plan),
+  `sensitive` (zones sensibles par chemin, motifs ajoutables via `sensitivePaths`),
+  `claim-run` (rattache un run repris à la nouvelle session).
+- **Schéma 2 de `state.json`** : `planCheck`, `scope`, `ci`, `pr`, `prComments`,
+  origine des tâches (`plan`, `split`, `ci`, `pr-review`), statut `awaiting_ci`. Les
+  runs 0.2 restent valides.
+- **Livrables structurés** (ADR 0003) : chaque agent termine par un bloc JSON
+  (`deliverables.md`) vérifié par le hook SubagentStop `check-deliverable`, qui
+  renvoie l'agent au travail s'il est invalide et écrit `review-<Tn>-<k>.json`, lu tel
+  quel par l'implementer.
+- **Mesures** : hook `record-metrics` (`metrics.jsonl`) et `metrics.mjs`.
+- **Agents qui se consultent** : planner en modes `consult` (question technique de
+  l'implementer, sans solliciter l'utilisateur) et `split` (redécoupage d'une tâche en
+  échec) ; escalade de l'implementer sur `escalationModel` à la correction.
+- **Après le push** (ADR 0005) : `ci-wait` (CI rouge → tâche `CI<n>` et run rouvert),
+  `pr-comments` (commentaires de PR filtrés → tâche `PR<k>`), `/team reprendre <id> --pr`.
+- **Leçons et backlog** (ADR 0006) : `lessons.mjs` (leçons filtrées, plafonnées, dans
+  `.agent-runs/lessons.md`), skill `/team-backlog` et `backlog.mjs` (issues
+  `agent-ready` traitées hors session, sans push par défaut), `docs/BACKLOG.md`,
+  `plan-waves.mjs` (parallélisme possible, à titre d'information).
+- **Banc d'essai** `bench/` : 4 scénarios de bout en bout, vérification
+  déterministe, lancement payant protégé par `--yes`, hors CI (`npm run bench`).
+- `team.json` : `escalationModel`, `sensitivePaths`, `ci`, `prComments`, `lessons`,
+  `backlog`, `parallel` (réservé), validés par `validate.mjs` et proposés par
+  `/team-init`.
+
+Modifié :
+- `keep-running` relance tant que `state.json` progresse (il ne relançait qu'une fois
+  par arrêt, insuffisant en `claude -p`) ; `awaiting_ci` est un statut actif.
+- `guard-bash` demande l'accord pour toute écriture sur GitHub (`gh pr comment`,
+  `gh issue comment`, `gh run rerun`, `gh api` modifiant…).
+- Boucle d'exécution : `check-scope` après l'implementer ; correction escaladée puis
+  redécoupage avant blocage.
+
+Pas encore fait :
+- Aucun run réel : le banc d'essai est prêt mais n'a pas été lancé (coût API).
+- Champs JSON exacts de `gh`, déclenchement de SubagentStop par nom d'agent et
+  `tool_response` des appels en arrière-plan : à confirmer sur un vrai run.
+- Parallélisme réel des tâches en worktrees : différé (ADR 0006).
+
 ## 0.2.1 — 2026-10-18
 
 Ajouté :
