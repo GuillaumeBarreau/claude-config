@@ -23,7 +23,12 @@ const routes = (extra = {}) => ({
   'gh api repos/{owner}/{repo}/pulls/42/comments --paginate': { stdout: pages.map((p) => JSON.stringify(p)).join('') },
   ...extra,
 });
-const fetch = (project, exec, opts = {}) => prComments({ runDir: project.runDir, claudeDir: project.claudeDir, exec, ...opts });
+const fetch = (project, exec, opts = {}) => {
+  const out = prComments({ runDir: project.runDir, claudeDir: project.claudeDir, exec, ...opts });
+  // Tout état écrit doit respecter check-state (schéma 2 compris).
+  assert.deepEqual(out.stateErrors ?? [], [], 'état écrit invalide : ' + out.message);
+  return out;
+};
 
 test('pr-comments : un passage → constats filtrés, une seule tâche PR1, run rouvert', () => {
   const project = makeProject({ state: doneState() });

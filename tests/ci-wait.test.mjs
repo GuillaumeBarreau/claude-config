@@ -19,7 +19,10 @@ const routes = (runList, extra = {}) => ({
 });
 
 function wait(project, exec, clock, opts = {}) {
-  return ciWait({ runDir: project.runDir, claudeDir: project.claudeDir, exec, now: clock.now, sleep: clock.sleep, ...opts });
+  const out = ciWait({ runDir: project.runDir, claudeDir: project.claudeDir, exec, now: clock.now, sleep: clock.sleep, ...opts });
+  // Tout état écrit doit respecter check-state (règles R4/R5 du schéma 2 comprises).
+  assert.deepEqual(out.stateErrors ?? [], [], 'état écrit invalide : ' + out.message);
+  return out;
 }
 
 /** Structure §2.1 de l'objet ci, vérifiée ici tant que check-state ne la connaît pas. */
