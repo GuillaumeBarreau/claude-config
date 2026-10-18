@@ -140,6 +140,22 @@ test('check-plan : tâches ci et pr-review sans fichiers, tâches redécoupées'
   assert.equal(errorsFor({ tasks: [task('T1'), t2], stateTasks: [task('T1'), ...splits] }), '');
 });
 
+test('check-plan : dépendances aval reportées sur les tâches d\'un redécoupage', () => {
+  const tasks = [task('T1'), task('T2', { acceptanceCriteria: ['AC2'], dependsOn: ['T1'] })];
+  const splits = [task('T1.1', { origin: 'split', splitFrom: 'T1' }),
+    task('T1.2', { origin: 'split', splitFrom: 'T1', acceptanceCriteria: [], dependsOn: ['T1.1'] })];
+  const downstream = (dependsOn) => [...splits, task('T2', { acceptanceCriteria: ['AC2'], dependsOn })];
+  assert.equal(errorsFor({ tasks, stateTasks: downstream(['T1.2']) }), '');
+  assert.equal(errorsFor({ tasks, stateTasks: downstream(['T1.1', 'T1.2']) }), '');
+  // Non reportée : T1 n'existe plus.
+  assert.match(errorsFor({ tasks, stateTasks: downstream(['T1']) }), /tâche inconnue « T1 »/);
+  // Vers une tâche réellement inconnue, ou une tâche existante qui ne remplace pas T1.
+  assert.match(errorsFor({ tasks, stateTasks: downstream(['T9']) }), /tâche inconnue « T9 »/);
+  const t3 = task('T3', { acceptanceCriteria: ['AC2'] });
+  assert.match(errorsFor({ tasks: [...tasks, t3], stateTasks: [...downstream(['T3']), t3] }), /T2 : plan\.md et state\.json diffèrent sur dependsOn/);
+  assert.match(errorsFor({ tasks, stateTasks: downstream([]) }), /T2 : plan\.md et state\.json diffèrent sur dependsOn/);
+});
+
 test('check-plan : piste quick sans objet', () => {
   const { root, runDir } = setup({ track: 'quick', tasks: [] });
   assert.equal(checkPlan(runDir, { projectDir: root }).status, 'n/a');

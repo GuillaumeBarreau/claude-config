@@ -7,10 +7,22 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { checkState } from './check-state.mjs';
+
 export const CLAUDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
-/** Erreur de gh ou de git (absent, non authentifié, dépôt inconnu) : sortie 2. */
-export class GhError extends Error {}
+/**
+ * Erreur de gh ou de git (absent, non authentifié, dépôt inconnu) : sortie 2.
+ * kind : « missing » (commande introuvable), « auth » (gh non authentifié) ou null.
+ */
+export class GhError extends Error {
+  constructor(message, kind = null) {
+    super(message);
+    this.kind = kind;
+  }
+}
+
+const AUTH_PATTERN = /gh auth login|not logged in|authentication required|bad credentials|HTTP 401|GH_TOKEN/i;
 
 /**
  * Exécuteur réel : exec(cmd, args) → { code, stdout, stderr }. Pas de shell : les
@@ -29,7 +41,10 @@ export function run(exec, cmd, args) {
   const res = exec(cmd, args);
   if (res.code !== 0) {
     const detail = String(res.stderr || res.stdout || '').trim().split(/\r?\n/).slice(-3).join(' ');
-    throw new GhError(`${cmd} ${args.slice(0, 3).join(' ')} a échoué (code ${res.code}) : ${detail || 'aucun message'}`);
+    let kind = null;
+    if (cmd === 'gh' && res.code === 127) kind = 'missing';
+    else if (cmd === 'gh' && AUTH_PATTERN.test(detail)) kind = 'auth';
+    throw new GhError(`${cmd} ${args.slice(0, 3).join(' ')} a échoué (code ${res.code}) : ${detail || 'aucun message'}`, kind);
   }
   return res.stdout;
 }
@@ -84,6 +99,16 @@ export function readTeam(claudeDir) {
 export function addLog(state, at, actor, event, detail) {
   if (!Array.isArray(state.log)) state.log = [];
   state.log.push({ at, actor, event, detail });
+}
+
+/**
+ * Vérifie state avec check-state AVANT de l'écrire : renvoie les erreurs ([] = écrit).
+ * Un état invalide n'est jamais écrit (sortie 4 des scripts).
+ */
+export function writeStateChecked(statePath, state, team) {
+  const errors = checkState(state, team);
+  if (!errors.length) writeJson(statePath, state);
+  return errors;
 }
 
 /** Tâche corrective au format de state.json (origin ci ou pr-review, sans fichiers imposés). */

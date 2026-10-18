@@ -64,3 +64,55 @@ test('guard-bash gh : les règles existantes restent intactes', () => {
   // deny l'emporte sur ask dans une même commande.
   assert.equal(decide('gh pr comment 12 --body x && gh pr merge 12'), 'deny');
 });
+
+// --- Contournements de la garde gh (préfixes, sous-commandes, chemin, PowerShell) ---
+
+test('guard-bash gh : la fusion est refusée quelle que soit la forme de la commande', () => {
+  for (const cmd of [
+    '(gh pr merge 1)', 'gh.exe pr merge 1', 'GH.EXE pr merge 1', '& gh pr merge 1', '&gh pr merge 1',
+    'env gh pr merge 1', 'env GH_TOKEN=x gh pr merge 1', 'command gh pr merge 1', 'exec gh pr merge 1',
+    'sudo gh pr merge 1', '{ gh pr merge 1; }', 'echo $(gh pr merge 1)', 'echo `gh pr merge 1`',
+    '/usr/bin/gh pr merge 1', '& "C:\\Program Files\\GitHub CLI\\gh.exe" pr merge 1', "& 'gh.exe' pr merge 1",
+    'C:\\tools\\gh.cmd pr merge 1', 'glab.exe mr merge 4', '(glab mr merge 4)',
+    'gh api -X PUT repos/o/r/pulls/1/merge', 'gh api --method=PUT repos/{owner}/{repo}/pulls/12/merge -f merge_method=squash',
+    'gh api repos/o/r/pulls/1/merge -f merge_method=squash',
+    "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+    'gh api graphql -f query=mutation{enablePullRequestAutoMerge(input:{pullRequestId:"x"}){clientMutationId}}',
+  ]) {
+    assert.equal(decide(cmd), 'deny', cmd);
+  }
+});
+
+test('guard-bash gh : toute écriture hors liste de lecture demande un accord', () => {
+  for (const cmd of [
+    'gh workflow run deploy.yml', 'gh secret set TOKEN', 'gh secret delete TOKEN', 'gh variable set X',
+    'gh issue create --title x', 'gh issue delete 4', 'gh issue reopen 4', 'gh pr reopen 3', 'gh label delete bug',
+    'gh repo edit --visibility public', 'gh release edit v1', 'gh browse', 'gh pr checkout 3',
+    'gh.exe workflow run deploy.yml', '(gh secret set TOKEN)', 'env gh issue create', 'echo $(gh label delete bug)',
+    'gh extension install x/y', 'gh auth logout', 'gh run download 3',
+  ]) {
+    assert.equal(decide(cmd), 'ask', cmd);
+  }
+});
+
+test('guard-bash gh : lectures toujours libres, y compris sous une forme normalisée', () => {
+  for (const cmd of [
+    'gh pr view 1', 'gh run list', 'gh run view 2 --log-failed', 'gh api repos/o/r/pulls', 'gh run watch 2',
+    'gh pr checks 3', 'gh pr checks 3 --watch', 'gh pr diff 3', 'gh pr status', 'gh pr list --state open',
+    'gh issue view 4', 'gh issue list', 'gh repo view', 'gh release list', 'gh release view v1',
+    'gh workflow list', 'gh workflow view ci.yml', 'gh label list', 'gh secret list', 'gh status',
+    'gh --version', 'gh help', 'gh auth status', 'gh search prs is:open', 'gh -R o/r pr view 1',
+    'gh api repos/o/r/pulls/1/merge', 'gh.exe pr view 1', '(gh run list)', 'echo $(gh pr view 1 --json url)',
+    'git commit -m "feat(gh): ajoute la garde"',
+  ]) {
+    assert.equal(decide(cmd), null, cmd);
+  }
+});
+
+test('guard-bash : la normalisation s\'applique aussi à git', () => {
+  assert.equal(decide('git.exe push origin main'), 'deny');
+  assert.equal(decide('(git push origin main)'), 'deny');
+  assert.equal(decide('& git.exe push origin team/x'), 'ask');
+  assert.equal(decide('env GIT_TRACE=1 git push --no-verify'), 'deny');
+  assert.equal(decide('echo $(git push origin team/x)'), 'ask');
+});

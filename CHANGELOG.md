@@ -41,6 +41,21 @@ Modifié :
 - Boucle d'exécution : `check-scope` après l'implementer ; correction escaladée puis
   redécoupage avant blocage.
 
+Corrigé après relecture de l'intégration :
+- `backlog.mjs` : la branche à pousser (écrite par le modèle) est validée (préfixe,
+  format, existence locale) et poussée avec un refspec explicite — `HEAD:main` ou
+  `+main` ne passent plus.
+- `check-plan` accepte les dépendances aval reportées sur les tâches d'un
+  redécoupage (le run restait coincé) ; `check-scope` ne compte plus les fichiers
+  d'une tâche CI/PR comme hors plan.
+- `ci-wait` : attente de 90 s par appel (sous le délai d'un appel Bash), état écrit
+  avant l'attente, `gh` absent → run `blocked`, reprise après délai dépassé, état
+  vérifié avant écriture (sortie 4) ; idem pour `pr-comments`, dont les tâches qui
+  citent une zone sensible sont `requiresHuman`.
+- `guard-bash` : `gh` en liste blanche de lectures (tout le reste demande l'accord),
+  préfixes et chemins normalisés (`gh.exe`, `(gh …)`, `env gh`, `$(…)`), fusion via
+  `gh api` refusée.
+
 Pas encore fait :
 - Aucun run réel : le banc d'essai est prêt mais n'a pas été lancé (coût API).
 - Champs JSON exacts de `gh`, déclenchement de SubagentStop par nom d'agent et

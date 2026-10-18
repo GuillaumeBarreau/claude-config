@@ -37,6 +37,7 @@ const MAX_QUESTIONS = 10;
 const CLAUDE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const MAX_TURNS = 300;
 export const DEFAULTS = { label: 'agent-ready', draftPr: false, maxIssues: 3, maxBudgetUsd: 5 };
+const DEFAULT_BRANCH_PREFIX = 'team/';
 const DEFAULT_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 export const LABELS = {
   working: 'agent-working',
@@ -64,10 +65,27 @@ export function backlogConfig(team) {
     maxBudgetUsd: typeof b.maxBudgetUsd === 'number' && b.maxBudgetUsd > 0 ? b.maxBudgetUsd : DEFAULTS.maxBudgetUsd,
     allowedAssociations: Array.isArray(assoc) && assoc.length ? assoc.map(String) : DEFAULT_ASSOCIATIONS,
     baseBranch: typeof team?.baseBranch === 'string' && team.baseBranch ? team.baseBranch : 'main',
+    branchPrefix: typeof team?.branchPrefix === 'string' && team.branchPrefix ? team.branchPrefix : DEFAULT_BRANCH_PREFIX,
   };
 }
 
 const CLEARED_CHECKS = ['passed', 'n/a'];
+
+/**
+ * Branche poussable ? state.branch est écrit par le modèle (influencé par l'issue) et
+ * poussé hors de Claude Code, donc sans hook : motif conservateur, préfixe imposé.
+ * @returns {string|null} raison du refus, ou null
+ */
+export function branchProblem(branch, prefix = DEFAULT_BRANCH_PREFIX) {
+  if (typeof branch !== 'string' || !branch) return 'branche absente';
+  const b = flat(branch, 200);
+  if (/^[+-]/.test(branch) || branch.startsWith('refs/')) return `branche « ${b} » refusée (commence par +, - ou refs/)`;
+  if (!/^[A-Za-z0-9._/-]+$/.test(branch)) return `branche « ${b} » refusée (caractères hors de [A-Za-z0-9._/-])`;
+  if (branch.includes('..') || branch.includes('//') || branch.endsWith('/') || branch.endsWith('.lock')
+    || branch.endsWith('.') || /(^|\/)\./.test(branch)) return `branche « ${b} » refusée (nom de branche Git invalide)`;
+  if (!branch.startsWith(prefix) || branch.length === prefix.length) return `branche « ${b} » refusée (préfixe attendu : ${prefix})`;
+  return null;
+}
 const flat = (text, max) => {
   const s = String(text ?? '').replace(/\s+/g, ' ').trim();
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
@@ -106,6 +124,10 @@ export function decideOutcome(state, config) {
   for (const t of tasks.filter((t) => t.requiresHuman)) problems.push(`tâche ${t.id} requiresHuman`);
   if (!state.branch || state.branch === (state.baseBranch ?? config.baseBranch) || state.branch === config.baseBranch) {
     problems.push('pas de branche de travail distincte de la branche de base');
+  }
+  if (state.branch) {
+    const bad = branchProblem(state.branch, config.branchPrefix ?? DEFAULT_BRANCH_PREFIX);
+    if (bad) problems.push(bad);
   }
   const errors = checkState(state);
   if (errors.length) problems.push(`state.json invalide (${flat(errors[0], 200)})`);
@@ -348,6 +370,17 @@ function comment(ctx, number, text) {
   must(ctx.gh(['issue', 'comment', String(number), '--body-file', file]), 'commentaire');
 }
 
+/** Contrôles Git avant le push réel, en plus de branchProblem. */
+function localBranchProblem(exec, branch, cwd) {
+  if (exec('git', ['check-ref-format', '--branch', branch], { cwd }).status !== 0) {
+    return `branche « ${flat(branch, 200)} » rejetée par git check-ref-format`;
+  }
+  if (exec('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status !== 0) {
+    return `branche « ${flat(branch, 200)} » absente du worktree (refs/heads)`;
+  }
+  return null;
+}
+
 function processIssue(issue, entry, ctx) {
   const { exec, gh, config, team } = ctx;
   const n = String(issue.number);
@@ -400,10 +433,17 @@ function processIssue(issue, entry, ctx) {
         } catch {
           // titre par défaut
         }
-        must(exec('git', ['push', '-u', 'origin', run.state.branch], { cwd: entry.worktree }), 'git push');
-        const pr = must(gh(['pr', 'create', '--draft', '--base', config.baseBranch, '--head', run.state.branch,
-          '--title', title, '--body-file', bodyFile], { cwd: entry.worktree }), 'gh pr create');
-        entry.pr = flat(pr.stdout, 300).split(' ').pop();
+        const branch = run.state.branch;
+        const refusal = localBranchProblem(exec, branch, entry.worktree);
+        if (refusal) {
+          decision = { outcome: 'blocked', label: LABELS.blocked, reason: `push refusé : ${refusal}` };
+        } else {
+          // Refspec explicite, sans + : ni force, ni autre branche distante que la sienne.
+          must(exec('git', ['push', '-u', 'origin', `refs/heads/${branch}:refs/heads/${branch}`], { cwd: entry.worktree }), 'git push');
+          const pr = must(gh(['pr', 'create', '--draft', '--base', config.baseBranch, '--head', branch,
+            '--title', title, '--body-file', bodyFile], { cwd: entry.worktree }), 'gh pr create');
+          entry.pr = flat(pr.stdout, 300).split(' ').pop();
+        }
       }
     }
   }

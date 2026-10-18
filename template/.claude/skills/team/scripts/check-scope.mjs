@@ -5,7 +5,8 @@
 //
 // Usage (depuis la racine du projet) :
 //   node .claude/skills/team/scripts/check-scope.mjs .agent-runs/<id> [--task Tn]
-//   --task : compare à files ∪ newFiles de la tâche et écrit task.scope ;
+//   --task : compare à files ∪ newFiles de la tâche et écrit task.scope (tâche ci ou
+//   pr-review : sans fichiers prévus, seules les zones sensibles comptent) ;
 //   sans --task (piste quick) : écrit state.scope (pas de plan : seules les zones
 //   sensibles comptent).
 // Fichiers modifiés : indexés, non indexés et non suivis (renommage → destination),
@@ -21,6 +22,7 @@ import { normalizePath, sensitiveFiles, teamSensitivePaths } from './sensitive.m
 
 const CLAUDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const EXCLUDED = [/^\.agent-runs\//, /^\.claude\/worktrees\//];
+const FREE_FILES_ORIGINS = ['ci', 'pr-review'];
 const TEST_FILE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.\w+$/;
 
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''));
@@ -52,10 +54,15 @@ export function changedFiles(projectDir) {
   return [...new Set(paths)].sort();
 }
 
-/** Calcul pur du périmètre. plan = { files, newFiles, requiresHuman } ou null (pas de plan). */
+/**
+ * Calcul pur du périmètre. plan = { files, newFiles, requiresHuman, origin } ou null (pas de
+ * plan). Une tâche ci ou pr-review n'a pas de fichiers prévus : comme sans plan, pas de hors
+ * plan, seules les zones sensibles comptent.
+ */
 export function computeScope(changed, plan, sensitivePaths = [], now = new Date().toISOString()) {
-  const planned = new Set(plan ? [...list(plan.files), ...list(plan.newFiles)].map(normalizePath) : []);
-  const unplanned = plan ? changed.filter((p) => !planned.has(p)) : [];
+  const bounded = plan && !FREE_FILES_ORIGINS.includes(plan.origin);
+  const planned = new Set(bounded ? [...list(plan.files), ...list(plan.newFiles)].map(normalizePath) : []);
+  const unplanned = bounded ? changed.filter((p) => !planned.has(p)) : [];
   const outOfPlanTests = unplanned.filter((p) => TEST_FILE.test(p));
   const outOfPlan = unplanned.filter((p) => !TEST_FILE.test(p));
   const sensitive = plan && plan.requiresHuman ? [] : sensitiveFiles(changed, sensitivePaths);

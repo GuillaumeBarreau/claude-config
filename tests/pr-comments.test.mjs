@@ -2,12 +2,13 @@
 // gh enregistrées.
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { evaluateCommand } from '../template/.claude/hooks/team/guard-bash.mjs';
 import { checkState } from '../template/.claude/skills/team/scripts/check-state.mjs';
+import { checkFinding } from '../template/.claude/skills/team/scripts/deliverable.mjs';
 import { parseJsonValues } from '../template/.claude/skills/team/scripts/gh.mjs';
 import { prComments } from '../template/.claude/skills/team/scripts/pr-comments.mjs';
 import { deliveredState, fakeExec, fixture, makeProject, readState } from './gh-fixtures.mjs';
@@ -46,18 +47,24 @@ test('pr-comments : un passage → constats filtrés, une seule tâche PR1, run 
     assert.equal(f.confidence, 'plausible');
     for (const key of ['problem', 'scenario', 'fix', 'url', 'author']) assert.equal(typeof f[key], 'string', `${f.id}.${key}`);
     assert.ok('file' in f && 'line' in f, f.id);
+    const errors = [];
+    checkFinding(errors, f, f.id);
+    assert.deepEqual(errors, [], `constat ${f.id} conforme au format des livrables`);
   }
   const inline = file.findings.find((f) => f.id === 'inline-501');
   assert.equal(inline.file, 'src/export.js');
   assert.equal(inline.line, 12);
   assert.equal(inline.author, 'alice');
   assert.equal(file.findings.find((f) => f.id === 'inline-503').line, 4, 'ligne d\'origine si la ligne a disparu');
+  assert.equal(file.findings.find((f) => f.id === 'issue-IC_kwDOA1').file, 'src/export.js', 'chemin cité dans le texte');
+  assert.equal(file.findings.find((f) => f.id === 'review-PRR_kwDOB1').file, '.', 'sans chemin : la racine du projet');
 
   const state = readState(project.runDir);
   const created = state.tasks.filter((t) => t.origin === 'pr-review');
   assert.equal(created.length, 1, 'une seule tâche par passage');
   assert.equal(created[0].id, 'PR1');
   assert.deepEqual(created[0].files, ['src/export.js'], 'seuls les chemins cités qui existent');
+  assert.equal(created[0].requiresHuman, false, 'aucune zone sensible citée');
   assert.match(created[0].description, /pr-comments-1\.json/);
   assert.equal(state.status, 'executing');
   for (const gate of ['checks', 'review', 'delivery']) assert.equal(state.gates[gate].status, 'pending');
@@ -118,6 +125,40 @@ test('pr-comments : prComments.allowedAssociations de team.json', () => {
   fetch(project, exec);
   const ids = JSON.parse(readFileSync(join(project.runDir, 'pr-comments-1.json'), 'utf8')).findings.map((f) => f.id);
   assert.deepEqual(ids.sort(), ['inline-501', 'issue-IC_kwDOA1']);
+});
+
+test('pr-comments : allowedAssociations vide → valeurs par défaut (OWNER, MEMBER, COLLABORATOR)', () => {
+  const project = makeProject({ state: doneState(), team: { prComments: { allowedAssociations: [] } } });
+  const { exec } = fakeExec(routes());
+  assert.equal(fetch(project, exec).code, 1);
+  const ids = JSON.parse(readFileSync(join(project.runDir, 'pr-comments-1.json'), 'utf8')).findings.map((f) => f.id);
+  assert.deepEqual(ids.sort(), ['inline-501', 'inline-503', 'issue-IC_kwDOA1', 'review-PRR_kwDOB1']);
+});
+
+test('pr-comments : chemin cité en zone sensible → tâche PR requiresHuman', () => {
+  const project = makeProject({ state: doneState() });
+  writeFileSync(join(project.projectDir, 'package.json'), '{}\n');
+  const inline = [{
+    author_association: 'OWNER', body: 'Retirer cette dépendance.', html_url: 'https://github.com/acme/app/pull/42#discussion_r601',
+    id: 601, line: 3, original_line: 3, path: 'package.json', user: { login: 'alice', type: 'User' },
+  }];
+  const { exec } = fakeExec(routes({ 'gh api repos/{owner}/{repo}/pulls/42/comments --paginate': { stdout: JSON.stringify(inline) } }));
+  assert.equal(fetch(project, exec, { createTask: true }).code, 1);
+  const task = readState(project.runDir).tasks.find((t) => t.id === 'PR1');
+  assert.ok(task.files.includes('package.json'));
+  assert.equal(task.requiresHuman, true);
+});
+
+test('pr-comments : état résultant invalide → sortie 4, rien n\'est écrit', () => {
+  const state = doneState();
+  state.tasks[0].status = 'bogus';
+  const project = makeProject({ state });
+  const before = readFileSync(project.statePath, 'utf8');
+  const out = prComments({ runDir: project.runDir, claudeDir: project.claudeDir, exec: fakeExec(routes()).exec, createTask: true });
+  assert.equal(out.code, 4);
+  assert.ok(out.stateErrors.length);
+  assert.equal(readFileSync(project.statePath, 'utf8'), before);
+  assert.ok(!existsSync(join(project.runDir, 'pr-comments-1.json')));
 });
 
 test('pr-comments : PR trouvée par la branche si state.pr est absent, puis enregistrée', () => {

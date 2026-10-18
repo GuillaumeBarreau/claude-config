@@ -4,12 +4,18 @@
 // qu'un agent affirme.
 //
 // Usage (depuis la racine du projet, après le push accordé à la porte 4) :
-//   node .claude/skills/team/scripts/ci-wait.mjs .agent-runs/<id> [--max-wait 540] [--interval 20] [--create-task]
+//   node .claude/skills/team/scripts/ci-wait.mjs .agent-runs/<id> [--max-wait 90] [--interval 20] [--create-task]
 //
-// - Entrée : statut awaiting_delivery_approval avec gates.delivery passed, ou
-//   awaiting_ci (reprise). Le run passe en awaiting_ci ; SHA = git rev-parse <branch>.
+// - Entrée : statut awaiting_delivery_approval avec gates.delivery passed, awaiting_ci
+//   (reprise), ou blocked avec ci.status pending (reprise explicite après le délai de
+//   CI ou gh absent : ci.startedAt remis à maintenant, blockedReason à null). Le run
+//   passe en awaiting_ci ; SHA = git rev-parse <branch>. state.json est écrit AVANT
+//   l'attente : un processus tué ne perd ni awaiting_ci ni ci.startedAt.
 // - Interroge `gh run list` toutes les --interval secondes, au plus --max-wait secondes
-//   par appel (sous le délai de 10 min d'un appel Bash). Pas de `gh run watch`.
+//   par appel (défaut 90, sous le délai de 120 s d'un appel Bash). Pas de `gh run watch`.
+// - gh absent ou non authentifié → run blocked (« gh absent ou non authentifié : … »).
+// - Chaque écriture de state.json est vérifiée par check-state avant : état invalide →
+//   rien n'est écrit.
 // - Aucun workflow pour ce SHA après 120 s → ci.status « n/a ». success, skipped et
 //   neutral → passed ; toute autre conclusion → failed.
 // - Échec : `gh run view <id> --log-failed` dans ci/<id>.log (fin, ≤ 200 Ko). Avec
@@ -19,19 +25,21 @@
 // - Au-delà de ci.timeoutMinutes (défaut 30) depuis le début de l'attente → blocked.
 // - team.json ci.enabled à false → sans objet, rien n'est modifié.
 // Sortie : 0 passed ou n/a (run done), 1 failed ou blocked, 3 en attente (relancer la
-// même commande), 2 erreur (gh absent ou non authentifié, run incompatible).
+// même commande), 2 erreur (gh absent ou non authentifié → run blocked ; autre erreur
+// gh ou git, run incompatible → rien de plus), 4 état invalide (state.json non écrit).
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { checkState } from './check-state.mjs';
 import {
-  CLAUDE_DIR, GhError, addLog, correctiveTask, createExec, readJson, readTeam, reopenRun, run, runJson, writeJson,
+  CLAUDE_DIR, GhError, addLog, correctiveTask, createExec, readJson, readTeam, reopenRun, run, runJson, writeStateChecked,
 } from './gh.mjs';
 
 const ACTOR = 'ci-wait';
 const GRACE_S = 120;
+// Sous le délai par défaut de 120 s d'un appel à l'outil Bash.
+const DEFAULT_MAX_WAIT_S = 90;
 const MAX_LOG_BYTES = 200 * 1024;
 const PASSING = ['success', 'skipped', 'neutral'];
 const DEFAULTS = { enabled: true, timeoutMinutes: 30, maxFixRounds: 2 };
@@ -62,12 +70,14 @@ function nextTaskId(state, prefix) {
 }
 
 /**
- * Renvoie { code, message, state, stateErrors }. Écrit state.json sauf sur erreur (2).
+ * Renvoie { code, message, state, stateErrors }. state.json est écrit avant l'attente
+ * (awaiting_ci, ci.startedAt) puis à la fin ; chaque écriture est vérifiée par
+ * check-state AVANT d'écrire : état invalide → rien n'est écrit, code 4.
  * exec, now et sleep sont injectables (tests : réponses gh enregistrées, horloge simulée).
  */
 export function ciWait({
   runDir, claudeDir = CLAUDE_DIR, exec, now = Date.now, sleep = sleepSync,
-  maxWaitS = 540, intervalS = 20, createTask = false,
+  maxWaitS = DEFAULT_MAX_WAIT_S, intervalS = 20, createTask = false,
 }) {
   const team = readTeam(claudeDir);
   const config = { ...DEFAULTS, ...(team.ci ?? {}) };
@@ -76,11 +86,18 @@ export function ciWait({
   const statePath = join(runDir, 'state.json');
   const state = readJson(statePath);
   const delivered = state.status === 'awaiting_delivery_approval' && state.gates?.delivery?.status === 'passed';
-  if (!delivered && state.status !== 'awaiting_ci') {
-    return { code: 2, message: `statut « ${state.status} » : ci-wait suit un push accordé (awaiting_delivery_approval avec porte livraison passed, ou awaiting_ci)` };
+  // Run bloqué pendant l'attente (délai de CI, gh absent) : reprise explicite.
+  const resumable = state.status === 'blocked' && state.ci?.status === 'pending';
+  if (!delivered && !resumable && state.status !== 'awaiting_ci') {
+    return {
+      code: 2,
+      message: `statut « ${state.status} » : ci-wait suit un push accordé (awaiting_delivery_approval avec porte livraison `
+        + 'passed, awaiting_ci, ou blocked avec ci.status pending pour reprendre)',
+    };
   }
   if (!state.branch) return { code: 2, message: 'state.json : « branch » absent' };
   exec = exec ?? createExec(dirname(claudeDir));
+  const invalid = (stateErrors) => ({ code: 4, message: 'état invalide : state.json non écrit', state, stateErrors });
 
   try {
     const sha = run(exec, 'git', ['rev-parse', state.branch]).trim();
@@ -89,8 +106,13 @@ export function ciWait({
     // les tours de correction se cumulent.
     if (!state.ci || state.ci.sha !== sha || state.ci.status !== 'pending') {
       state.ci = { status: 'pending', sha, startedAt: iso(start), checkedAt: null, rounds: state.ci?.rounds ?? 0, runs: [] };
+    } else if (resumable) {
+      state.ci.startedAt = iso(start);
+      addLog(state, iso(start), ACTOR, 'ci_resumed', `reprise de l'attente après : ${state.blockedReason ?? 'blocage'}`);
     }
     state.status = 'awaiting_ci';
+    state.blockedReason = null;
+    state.updatedAt = iso(start);
     if (!state.pr) {
       const pr = exec('gh', ['pr', 'view', state.branch, '--json', 'number,url']);
       if (pr.code === 0) {
@@ -100,6 +122,10 @@ export function ciWait({
         } catch { /* PR illisible : on réessaiera au prochain passage */ }
       }
     }
+    // Écrit avant l'attente : si le processus est tué (délai de l'outil Bash), la
+    // relance retrouve awaiting_ci et ci.startedAt.
+    const before = writeStateChecked(statePath, state, team);
+    if (before.length) return invalid(before);
 
     const startedAt = Date.parse(state.ci.startedAt);
     const deadline = start + maxWaitS * 1000;
@@ -174,11 +200,21 @@ export function ciWait({
         }
       }
     }
-    writeJson(statePath, state);
-    return { code, message, state, stateErrors: checkState(state, team) };
+    const errors = writeStateChecked(statePath, state, team);
+    return errors.length ? invalid(errors) : { code, message, state, stateErrors: [] };
   } catch (err) {
-    if (err instanceof GhError) return { code: 2, message: err.message };
-    throw err;
+    if (!(err instanceof GhError)) throw err;
+    if (!err.kind) return { code: 2, message: err.message };
+    // gh absent ou non authentifié : relancer ne sert à rien sans action de
+    // l'utilisateur ; blocked n'est pas un statut actif pour keep-running. Reprise :
+    // relancer ci-wait une fois gh installé et authentifié (ci.status reste pending).
+    const at = iso(now());
+    state.status = 'blocked';
+    state.blockedReason = `gh absent ou non authentifié : ${err.message}`;
+    state.updatedAt = at;
+    addLog(state, at, ACTOR, 'ci_failed', state.blockedReason);
+    const errors = writeStateChecked(statePath, state, team);
+    return errors.length ? invalid(errors) : { code: 2, message: err.message, state, stateErrors: [] };
   }
 }
 
@@ -194,14 +230,14 @@ function main(argv) {
   const args = argv.slice(2);
   const runDir = args.find((a, i) => !a.startsWith('--') && !['--max-wait', '--interval'].includes(args[i - 1]));
   if (!runDir) {
-    console.error('Usage : node ci-wait.mjs .agent-runs/<id> [--max-wait 540] [--interval 20] [--create-task]');
+    console.error('Usage : node ci-wait.mjs .agent-runs/<id> [--max-wait 90] [--interval 20] [--create-task]');
     return 2;
   }
   let out;
   try {
     out = ciWait({
       runDir: resolve(runDir),
-      maxWaitS: option(args, '--max-wait', 540),
+      maxWaitS: option(args, '--max-wait', DEFAULT_MAX_WAIT_S),
       intervalS: option(args, '--interval', 20),
       createTask: args.includes('--create-task'),
     });
@@ -209,12 +245,13 @@ function main(argv) {
     console.error(`erreur : ${err.message}`);
     return 2;
   }
-  (out.code === 2 ? console.error : console.log)(out.code === 2 ? `erreur : ${out.message}` : out.message);
+  const failure = out.code === 2 || out.code === 4;
+  (failure ? console.error : console.log)(failure ? `erreur : ${out.message}` : out.message);
   for (const r of out.state?.ci?.runs ?? []) {
     console.log(`  ${String(r.conclusion).padEnd(12)} ${r.name}  ${r.url}${r.log ? `\n    journal : ${join(runDir, r.log)}` : ''}`);
   }
   for (const e of out.stateErrors ?? []) console.error(`state.json : ${e}`);
-  return out.stateErrors?.length ? 2 : out.code;
+  return out.code;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

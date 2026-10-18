@@ -75,7 +75,9 @@ et `prComments.allowedAssociations`.
   commande. Sortie 0 : CI verte ou aucun workflow (`n/a`), run `done`. Sortie 1 : CI
   rouge ; les journaux d'échec sont dans `ci/<runId>.log` et une tâche `CI<n>` rouvre
   le run, ou le run passe `blocked` quand les `maxFixRounds` tours sont épuisés.
-  Sortie 2 : gh absent ou non authentifié, à signaler à l'utilisateur.
+  Sortie 2 : gh absent ou non authentifié, le run passe `blocked` ; à signaler à
+  l'utilisateur, puis relancer `ci-wait`. Sortie 4 : état invalide, rien n'est écrit.
+  Chaque appel attend au plus 90 s et écrit `state.json` avant d'attendre.
 - **Commentaires de PR** : `node .claude/skills/team/scripts/pr-comments.mjs .agent-runs/<id> --create-task`,
   à la demande de l'utilisateur ou quand il signale une relecture. Seuls les auteurs
   de `allowedAssociations` (défaut OWNER, MEMBER, COLLABORATOR) sont retenus, sans les
@@ -89,6 +91,6 @@ et `prComments.allowedAssociations`.
   l'utilisateur. Pas de `--force` : les commits correctifs s'ajoutent.
 - **Pas de réponse automatique sur GitHub** : un agent ne commente pas, ne répond
   pas à une revue, ne résout pas de fil, ne relance ni n'annule de CI sans accord
-  (`guard-bash` demande l'accord pour `gh pr comment|review|edit`,
-  `gh issue comment|edit|close`, `gh run rerun|cancel` et `gh api` modifiant). La
+  (`guard-bash` demande l'accord pour toute commande `gh` qui n'est pas une lecture,
+  et refuse toute fusion). La
   synthèse du run indique à l'utilisateur quels commentaires ont été traités.

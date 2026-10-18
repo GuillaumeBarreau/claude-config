@@ -72,6 +72,28 @@ function pathProblem(path) {
 const normalized = (task, key) => JSON.stringify(key === 'newFiles' ? (task.newFiles ?? []) : task[key]);
 
 /**
+ * dependsOn de plan.md et de state.json concordent-ils ? Une dépendance vers une tâche
+ * redécoupée (replaced : id → ids de ses tâches split) est satisfaite par n'importe quel
+ * sous-ensemble non vide de ses remplaçantes ; les autres doivent être identiques.
+ */
+function sameDependsOn(planned, actual, replaced) {
+  const plannedDeps = planned.dependsOn;
+  if (!Array.isArray(plannedDeps) || !plannedDeps.some((d) => replaced.has(d))) {
+    return normalized(planned, 'dependsOn') === normalized(actual, 'dependsOn');
+  }
+  const actualDeps = list(actual.dependsOn);
+  const kept = plannedDeps.filter((d) => !replaced.has(d));
+  const allowed = new Set(kept);
+  for (const d of plannedDeps.filter((x) => replaced.has(x))) {
+    const substitutes = replaced.get(d);
+    if (!actualDeps.some((a) => substitutes.includes(a))) return false;
+    for (const s of substitutes) allowed.add(s);
+  }
+  return kept.every((d) => actualDeps.includes(d)) && actualDeps.every((a) => allowed.has(a))
+    && new Set(actualDeps).size === actualDeps.length;
+}
+
+/**
  * @returns { status: "passed"|"failed"|"n/a", errors, warnings, digest }
  */
 export function checkPlan(runDir, { projectDir = dirname(CLAUDE_DIR), sensitivePaths = teamSensitivePaths() } = {}) {
@@ -97,23 +119,28 @@ export function checkPlan(runDir, { projectDir = dirname(CLAUDE_DIR), sensitiveP
   }
 
   // Bloc de plan.md ↔ tâches de state.json (origine plan ; une tâche redécoupée est
-  // remplacée par ses tâches split).
+  // remplacée par ses tâches split, y compris dans les dependsOn des tâches aval).
   const planPath = join(runDir, 'plan.md');
   if (!existsSync(planPath)) errors.push('plan.md absent du run');
   else {
     try {
       const block = planBlock(readFileSync(planPath, 'utf8'));
       const planTasks = tasks.filter((t) => (t.origin ?? 'plan') === 'plan');
-      const splitFrom = new Set(tasks.filter((t) => t.origin === 'split').map((t) => t.splitFrom));
+      const replaced = new Map();
+      for (const t of tasks.filter((x) => x.origin === 'split')) {
+        replaced.set(t.splitFrom, [...(replaced.get(t.splitFrom) ?? []), t.id]);
+      }
       const byId = new Map(planTasks.map((t) => [t.id, t]));
       const blockIds = new Set(block.map((t) => t && t.id));
       for (const planned of block.filter((t) => t && typeof t === 'object')) {
         const actual = byId.get(planned.id);
         if (!actual) {
-          if (!splitFrom.has(planned.id)) errors.push(`${planned.id} : présente dans plan.md, absente de state.json`);
+          if (!replaced.has(planned.id)) errors.push(`${planned.id} : présente dans plan.md, absente de state.json`);
           continue;
         }
-        const diff = COMPARED.filter((k) => normalized(planned, k) !== normalized(actual, k));
+        const diff = COMPARED.filter((k) => (k === 'dependsOn'
+          ? !sameDependsOn(planned, actual, replaced)
+          : normalized(planned, k) !== normalized(actual, k)));
         if (diff.length) errors.push(`${planned.id} : plan.md et state.json diffèrent sur ${diff.join(', ')}`);
       }
       for (const t of planTasks.filter((x) => !blockIds.has(x.id))) {

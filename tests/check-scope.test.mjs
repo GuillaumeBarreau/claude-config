@@ -97,6 +97,24 @@ test('check-scope : renommage compté à la destination ; justification conserv�
   assert.equal(read().tasks[0].scope.justification, '');
 });
 
+test('check-scope : tâche ci ou pr-review (files vide) → pas de hors plan, seules les zones sensibles comptent', () => {
+  for (const origin of ['ci', 'pr-review']) {
+    const { root, runDir, read } = setup();
+    const state = read();
+    state.tasks = [{ ...state.tasks[0], id: 'CI1', origin, files: [], newFiles: [] }];
+    writeFile(join(runDir, 'state.json'), JSON.stringify(state));
+    writeFile(join(root, 'src/cli.js'), 'console.log(2);\n');
+    assert.equal(checkScope(runDir, { projectDir: root, taskId: 'CI1' }).code, 0, origin);
+    assert.equal(read().tasks[0].scope.status, 'ok', origin);
+    assert.deepEqual(read().tasks[0].scope.outOfPlan, [], origin);
+
+    writeFile(join(root, '.github/workflows/ci.yml'), 'on: push\n');
+    assert.equal(checkScope(runDir, { projectDir: root, taskId: 'CI1' }).code, 1, origin);
+    assert.equal(read().tasks[0].scope.status, 'sensitive', origin);
+    assert.deepEqual(read().tasks[0].scope.outOfPlan, [], origin);
+  }
+});
+
 test('check-scope : piste quick (sans --task) → state.scope, refusé par check-state si sensible', () => {
   const { root, runDir, read } = setup({ track: 'quick', tasks: [] });
   writeFile(join(root, 'src/cli.js'), 'console.log(2);\n');

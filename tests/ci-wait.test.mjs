@@ -164,13 +164,113 @@ test('ci-wait : délai ci.timeoutMinutes dépassé → blocked', () => {
   assert.deepEqual(checkState(state), []);
 });
 
-test('ci-wait : erreur gh (authentification) → sortie 2, state.json intact', () => {
+test('ci-wait : gh non authentifié → sortie 2, run blocked avec raison explicite', () => {
   const project = makeProject();
-  const before = readFileSync(project.statePath, 'utf8');
   const { exec } = fakeExec(routes(null, { 'gh run list': { code: 4, stderr: 'To get started with GitHub CLI, please run:  gh auth login' } }));
   const out = wait(project, exec, fakeClock());
   assert.equal(out.code, 2);
   assert.match(out.message, /gh auth login/);
+  const state = readState(project.runDir);
+  assert.equal(state.status, 'blocked', 'plus de statut actif : keep-running ne relance pas en boucle');
+  assert.match(state.blockedReason, /^gh absent ou non authentifié : .*gh auth login/);
+  assert.equal(state.ci.status, 'pending');
+  assert.deepEqual(checkState(state), []);
+});
+
+test('ci-wait : gh introuvable → sortie 2, run blocked', () => {
+  const project = makeProject();
+  const { exec } = fakeExec(routes(null, {
+    'gh pr view': { code: 127, stderr: 'gh : spawnSync gh ENOENT' },
+    'gh run list': { code: 127, stderr: 'gh : spawnSync gh ENOENT' },
+  }));
+  assert.equal(wait(project, exec, fakeClock()).code, 2);
+  const state = readState(project.runDir);
+  assert.equal(state.status, 'blocked');
+  assert.match(state.blockedReason, /^gh absent ou non authentifié : .*ENOENT/);
+});
+
+test('ci-wait : autre erreur gh (réseau) → sortie 2, le run reste awaiting_ci', () => {
+  const project = makeProject();
+  const { exec } = fakeExec(routes(null, { 'gh run list': { code: 1, stderr: 'error connecting to api.github.com' } }));
+  assert.equal(wait(project, exec, fakeClock()).code, 2);
+  assert.equal(readState(project.runDir).status, 'awaiting_ci');
+});
+
+test('ci-wait : state.json écrit avant l\'attente (processus tué pendant la boucle)', () => {
+  const project = makeProject();
+  const clock = fakeClock();
+  let seen = null;
+  const { exec } = fakeExec(routes(null, {
+    'gh run list': () => {
+      seen = readState(project.runDir);
+      throw new Error('processus tué par le délai de l\'outil Bash');
+    },
+  }));
+  assert.throws(() => wait(project, exec, clock), /processus tué/);
+  assert.equal(seen.status, 'awaiting_ci', 'awaiting_ci écrit avant la première interrogation');
+  assertCiShape(seen.ci);
+  assert.equal(seen.ci.status, 'pending');
+  assert.equal(seen.ci.startedAt, new Date(clock.now()).toISOString());
+  assert.deepEqual(checkState(seen), []);
+
+  // Relance 5 min plus tard : startedAt conservé, le délai de grâce compte depuis le début.
+  clock.advance(5 * 60_000);
+  const other = fakeExec(routes('run-list-other-sha.json'));
+  assert.equal(wait(project, other.exec, clock, { maxWaitS: 30, intervalS: 20 }).code, 0);
+  const state = readState(project.runDir);
+  assert.equal(state.ci.startedAt, seen.ci.startedAt);
+  assert.equal(state.ci.status, 'n/a');
+});
+
+test('ci-wait : --max-wait vaut 90 s par défaut (sous le délai de 120 s de l\'outil Bash)', () => {
+  const project = makeProject();
+  const clock = fakeClock();
+  const start = clock.now();
+  const { exec } = fakeExec(routes('run-list-in-progress.json'));
+  assert.equal(wait(project, exec, clock).code, 3);
+  assert.ok(clock.now() - start <= 90_000, `attente de ${(clock.now() - start) / 1000} s`);
+});
+
+test('ci-wait : run blocked par le délai de CI → reprise explicite (awaiting_ci, startedAt remis à maintenant)', () => {
+  const clock = fakeClock();
+  const old = new Date(clock.now() - 40 * 60_000).toISOString();
+  const ci = { status: 'pending', sha: SHA, startedAt: old, checkedAt: old, rounds: 1, runs: [] };
+  const blocked = { status: 'blocked', blockedReason: 'CI : délai de 30 min dépassé sans résultat pour 1111111', ci };
+  const project = makeProject({ state: deliveredState(blocked) });
+  const { exec } = fakeExec(routes('run-list-in-progress.json'));
+  assert.equal(wait(project, exec, clock, { maxWaitS: 40, intervalS: 20 }).code, 3);
+  const state = readState(project.runDir);
+  assert.equal(state.status, 'awaiting_ci');
+  assert.equal(state.blockedReason, null);
+  assert.equal(state.ci.status, 'pending');
+  assert.equal(state.ci.rounds, 1);
+  assert.ok(Date.parse(state.ci.startedAt) > Date.parse(old), 'startedAt remis à maintenant');
+  assert.ok(state.log.some((e) => e.event === 'ci_resumed'));
+
+  const ok = makeProject({ state: deliveredState(blocked) });
+  assert.equal(wait(ok, fakeExec(routes('run-list-success.json')).exec, fakeClock()).code, 0);
+  assert.equal(readState(ok.runDir).status, 'done');
+});
+
+test('ci-wait : run blocked sans CI en attente (tours épuisés) → sortie 2, rien n\'est modifié', () => {
+  const ci = { status: 'failed', sha: SHA, startedAt: '2026-10-18T09:00:00Z', checkedAt: null, rounds: 2, runs: [] };
+  const project = makeProject({ state: deliveredState({ status: 'blocked', blockedReason: 'CI en échec après 2 tour(s)', ci }) });
+  const before = readFileSync(project.statePath, 'utf8');
+  const { exec, calls } = fakeExec(routes('run-list-success.json'));
+  assert.equal(wait(project, exec, fakeClock()).code, 2);
+  assert.equal(calls.length, 0);
+  assert.equal(readFileSync(project.statePath, 'utf8'), before);
+});
+
+test('ci-wait : état résultant invalide → sortie 4, state.json non écrit', () => {
+  const state = deliveredState();
+  state.tasks[0].status = 'bogus';
+  const project = makeProject({ state });
+  const before = readFileSync(project.statePath, 'utf8');
+  const { exec } = fakeExec(routes('run-list-success.json'));
+  const out = ciWait({ runDir: project.runDir, claudeDir: project.claudeDir, exec, ...fakeClock() });
+  assert.equal(out.code, 4);
+  assert.ok(out.stateErrors.length);
   assert.equal(readFileSync(project.statePath, 'utf8'), before);
 });
 

@@ -17,8 +17,9 @@ relecture humaine. L'utilisateur devait les recopier à la main dans un nouveau 
   par un exécuteur injectable (`gh.mjs`) : les tests rejouent des réponses enregistrées
   (`tests/fixtures/gh/`) et n'appellent jamais le vrai `gh` ni le réseau.
 - **Attente bornée, sans `gh run watch`** : `ci-wait` interroge `gh run list` à
-  intervalle fixe, au plus `--max-wait` secondes (540 par défaut, sous la limite de
-  10 min d'un appel Bash), puis rend la main avec la sortie 3 pour être relancé. Le
+  intervalle fixe, au plus `--max-wait` secondes (90 par défaut, sous le délai de
+  120 s d'un appel Bash ; l'état est écrit avant l'attente), puis rend la main avec la
+  sortie 3 pour être relancé. Le
   statut `awaiting_ci` reste actif pour `keep-running`. Au-delà de
   `ci.timeoutMinutes`, le run passe `blocked`. Seuls les runs du SHA poussé comptent ;
   sans workflow après 120 s, la CI est `n/a`.

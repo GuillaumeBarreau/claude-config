@@ -79,6 +79,24 @@ test('decideOutcome : jamais de push si draftPr faux, tâche requiresHuman, cont
   assert.notEqual(decideOutcome(null, READY).outcome, 'pr');
 });
 
+test('decideOutcome : branche hostile ou hors préfixe → jamais de PR', () => {
+  const hostile = ['HEAD:main', '+main', 'refs/heads/main', '--mirror', 'team/a:main', '+team/a', 'team/a b',
+    'team/../main', 'team//a', 'team/a.lock', 'team/a/', 'feature/x', '-team/a', 'team/a;rm'];
+  for (const branch of hostile) {
+    const state = readyState();
+    state.branch = branch;
+    const decision = decideOutcome(state, READY);
+    assert.notEqual(decision.outcome, 'pr', branch);
+    assert.match(decision.reason, /branche/, branch);
+  }
+  const custom = readyState();
+  custom.branch = 'agents/x';
+  assert.equal(decideOutcome(custom, { ...READY, branchPrefix: 'agents/' }).outcome, 'pr');
+  assert.notEqual(decideOutcome(readyState(), { ...READY, branchPrefix: 'agents/' }).outcome, 'pr');
+  assert.equal(backlogConfig({}).branchPrefix, 'team/');
+  assert.equal(backlogConfig({ branchPrefix: 'agents/' }).branchPrefix, 'agents/');
+});
+
 test('decideOutcome : questions, plan à valider, blocage', () => {
   const input = example();
   input.status = 'awaiting_input';
@@ -141,7 +159,7 @@ function isMutating({ cmd, args }) {
 /**
  * @param runState state.json que « claude » écrit dans le worktree (null : aucun run)
  */
-function fakeExec({ runState = readyState(), issues = ISSUES } = {}) {
+function fakeExec({ runState = readyState(), issues = ISSUES, missingBranch = false } = {}) {
   const calls = [];
   const exec = (cmd, args, opts = {}) => {
     calls.push({ cmd, args, opts });
@@ -166,6 +184,7 @@ function fakeExec({ runState = readyState(), issues = ISSUES } = {}) {
       }
       return { status: 0, stdout: JSON.stringify({ total_cost_usd: 0.42, num_turns: 30, is_error: false }) };
     }
+    if (missingBranch && line.startsWith('git rev-parse --verify')) return { status: 1, stdout: '', stderr: '' };
     if (line.startsWith('gh pr create')) return { status: 0, stdout: 'https://github.com/o/r/pull/99\n' };
     return { status: 0, stdout: '' };
   };
@@ -247,7 +266,14 @@ test('mode réel, draftPr vrai et run prêt : worktree hors du dépôt, claude, 
   assert.equal(claude.opts.env.CLAUDECODE, undefined);
   assert.equal(claude.opts.cwd, add.args[3]);
 
-  assert.ok(lines.includes('git push -u origin team/2026-10-18-exemple'));
+  const b = 'team/2026-10-18-exemple';
+  const push = lines.indexOf(`git push -u origin refs/heads/${b}:refs/heads/${b}`);
+  assert.ok(push >= 0, 'push avec refspec explicite, sans +');
+  const format = lines.indexOf(`git check-ref-format --branch ${b}`);
+  const exists = lines.indexOf(`git rev-parse --verify --quiet refs/heads/${b}`);
+  assert.ok(format >= 0 && format < push, 'check-ref-format avant le push');
+  assert.ok(exists >= 0 && exists < push, 'existence de la branche vérifiée avant le push');
+  assert.ok(!lines.some((l) => l.startsWith('git push') && l.includes('+')));
   const pr = calls.find((c) => c.cmd === 'gh' && c.args[0] === 'pr' && c.args[1] === 'create');
   assert.ok(pr.args.includes('--draft'));
   assert.match(pr.args[pr.args.indexOf('--body-file') + 1], /pr-body\.md$/);
@@ -299,4 +325,15 @@ test('mode réel : worktree déjà présent → issue ignorée sans toucher aux 
   const r2 = runBacklog({ argv: ['--yes', '--issue', '7'], exec: none.exec, env: {}, projectDir: root, tmpRoot: tempDir() });
   assert.equal(r2.report.issues[0].outcome, 'blocked');
   assert.ok(callLines(none.calls).some((l) => /--add-label agent-blocked/.test(l)));
+});
+
+test('mode réel : branche absente du worktree → agent-blocked, aucun push ni PR', () => {
+  const root = project({ team: { backlog: { draftPr: true } } });
+  const { exec, calls } = fakeExec({ missingBranch: true });
+  const result = runBacklog({ argv: ['--yes', '--issue', '7'], exec, env: {}, projectDir: root, tmpRoot: tempDir() });
+  const lines = callLines(calls);
+  assert.ok(!lines.some((l) => l.startsWith('git push') || l.startsWith('gh pr')));
+  assert.equal(result.report.issues[0].outcome, 'blocked');
+  assert.match(result.report.issues[0].reason, /branche/);
+  assert.ok(lines.some((l) => /--add-label agent-blocked/.test(l)));
 });
