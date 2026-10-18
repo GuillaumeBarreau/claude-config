@@ -280,6 +280,11 @@ function checkOptionalKeys(config, errors, warnings) {
     if (backlog.label !== undefined && !(typeof backlog.label === 'string' && backlog.label.trim())) {
       err('backlog.label', 'doit être un texte non vide');
     }
+    const labels = backlog.priorityLabels;
+    if (labels !== undefined && !(Array.isArray(labels) && labels.length && labels.every((l) => typeof l === 'string' && l.trim())
+      && new Set(labels.map((l) => l.trim())).size === labels.length)) {
+      err('backlog.priorityLabels', 'doit être une liste non vide de textes non vides, sans doublon');
+    }
     bool('backlog.draftPr', backlog.draftPr);
     int('backlog.maxIssues', backlog.maxIssues, 1);
     if (backlog.maxBudgetUsd !== undefined && !(typeof backlog.maxBudgetUsd === 'number' && backlog.maxBudgetUsd > 0)) {

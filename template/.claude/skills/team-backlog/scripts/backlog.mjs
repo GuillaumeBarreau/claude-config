@@ -34,9 +34,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { checkState } from '../../team/scripts/check-state.mjs';
+import { DEFAULT_PRIORITY_LABELS, MAX_BODY, retainedBody } from './issue-queue.mjs';
+
+export { MAX_BODY };
 
 const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-export const MAX_BODY = 4000;
 const MAX_TITLE = 200;
 const MAX_QUESTIONS = 10;
 const CLAUDE_TIMEOUT_MS = 2 * 60 * 60 * 1000;
@@ -59,6 +61,13 @@ const LABEL_DESCRIPTIONS = {
   [LABELS.blocked]: ['b60205', 'Run /team bloqué'],
 };
 
+/** Labels de priorité valides (liste non vide de textes non vides, sans doublon), espaces retirées ; sinon null. */
+function validPriorityLabels(value) {
+  if (!Array.isArray(value) || !value.length || !value.every((l) => typeof l === 'string' && l.trim())) return null;
+  const labels = value.map((l) => l.trim());
+  return new Set(labels).size === labels.length ? labels : null;
+}
+
 /** Clés backlog de team.json, avec les valeurs par défaut. */
 export function backlogConfig(team) {
   const b = team?.backlog ?? {};
@@ -69,6 +78,7 @@ export function backlogConfig(team) {
     maxIssues: Number.isInteger(b.maxIssues) && b.maxIssues > 0 ? b.maxIssues : DEFAULTS.maxIssues,
     maxBudgetUsd: typeof b.maxBudgetUsd === 'number' && b.maxBudgetUsd > 0 ? b.maxBudgetUsd : DEFAULTS.maxBudgetUsd,
     allowedAssociations: Array.isArray(assoc) && assoc.length ? assoc.map(String) : DEFAULT_ASSOCIATIONS,
+    priorityLabels: validPriorityLabels(b.priorityLabels) ?? [...DEFAULT_PRIORITY_LABELS],
     baseBranch: typeof team?.baseBranch === 'string' && team.baseBranch ? team.baseBranch : 'main',
     branchPrefix: typeof team?.branchPrefix === 'string' && team.branchPrefix ? team.branchPrefix : DEFAULT_BRANCH_PREFIX,
   };
@@ -182,8 +192,8 @@ export function decideOutcome(state, config) {
 /** Prompt du run : le texte de l'issue est une donnée, limitée en taille. */
 export function buildPrompt(issue) {
   const title = flat(issue.title, MAX_TITLE);
-  let body = String(issue.body ?? '').replace(/\r\n/g, '\n').trim();
-  if (body.length > MAX_BODY) body = `${body.slice(0, MAX_BODY)}\n[…corps de l'issue tronqué]`;
+  let body = retainedBody(issue.body);
+  if (String(issue.body ?? '').replace(/\r\n/g, '\n').trim().length > MAX_BODY) body += '\n[…corps de l\'issue tronqué]';
   return `/team Issue #${issue.number} : ${title}${body ? `\n\n${body}` : ''}`;
 }
 
