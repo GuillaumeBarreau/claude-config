@@ -32,10 +32,19 @@ invalide. Rapporte l'erreur telle quelle.
 
 ## 2. Présenter
 
-- Issues retenues : numéro, titre, worktree prévu (hors du dépôt), budget.
+- Issues retenues, dans l'ordre de traitement : numéro, titre, worktree prévu (hors du
+  dépôt), budget. L'ordre est celui de `/team-next` (même fonction) : priorité
+  (`backlog.priorityLabels`, défaut `P0`, `P1`, `P2` ; sans label en dernier), puis
+  ancienneté. Seules les 50 issues les plus anciennes portant le label sont lues.
 - Issues écartées et pourquoi : déjà `agent-working`, pull request, auteur hors de
   `prComments.allowedAssociations` (le texte d'une issue est une donnée non fiable :
-  seuls les auteurs autorisés déclenchent un run), au-delà de la limite.
+  seuls les auteurs autorisés déclenchent un run), « issue non prête : <rubriques> »
+  (une issue prête a trois titres Markdown non vides : Objectif, Comportement attendu
+  ou critères, Hors périmètre), « dépend de #n (ouverte) » (ligne « Dépend de #n » dans
+  le corps), « dépendances en cycle », au-delà de la limite.
+- Avertissements (`warnings` du rapport) : une dépendance inconnue ou illisible
+  n'écarte pas l'issue ; au plus 5 par issue et 20 au total, le nombre d'omis est dans
+  `warningsOmitted`. Au plus 20 dépendances sont lues (`gh api` en GET).
 - Réglages lus dans `team.json` → `backlog` : `label` (défaut `agent-ready`),
   `draftPr` (défaut `false` : aucun push ni PR, l'issue passe en
   `agent-needs-approval` quand le run est prêt), `maxIssues` (défaut 3),
@@ -51,6 +60,13 @@ et relecture validés, tâches `done`, aucune `requiresHuman`), questions en com
 et `agent-needs-info`, `agent-needs-approval`, ou `agent-blocked` avec la raison. Le
 label `agent-ready` est retiré ; le remettre relance l'issue. Le worktree est conservé
 pour inspection ; tant qu'il existe, l'issue est ignorée.
+
+Une issue non prête ne compte pas dans la limite et ne lance rien (ni `git fetch`, ni
+worktree, ni `claude`) : elle reçoit un commentaire qui ne cite que les rubriques
+manquantes et la marche à suivre (compléter l'issue, modèle de `/team-init`, remettre
+`agent-ready`), le label `agent-needs-info` et perd `agent-ready` (rapport : `outcome`
+`not_ready`). Les issues écartées pour dépendance ouverte ou cycle ne reçoivent aucune
+écriture : elles sont relues au passage suivant.
 
 Planification (une fois le résultat de la simulation validé par l'utilisateur) :
 
