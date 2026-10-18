@@ -201,11 +201,13 @@ test('projet inexistant : erreur', () => {
 const readSettings = (projectDir) => JSON.parse(readFileSync(join(projectDir, '.claude/settings.json'), 'utf8'));
 const ourCommands = (settings) => Object.values(settings.hooks ?? {}).flat()
   .flatMap((g) => g.hooks).map((h) => h.command).filter((c) => c.includes('.claude/hooks/team/'));
+// Nombre de hooks de l'équipe déclarés par le template (il change d'une version à l'autre).
+const TEAM_HOOKS = ourCommands(JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'settings.json'), 'utf8'))).length;
 
 test('settings.json absent : créé avec les hooks de l\'équipe', () => {
   const { projectDir, run } = setup();
   assert.deepEqual(byAction(run(), 'add').filter((f) => f === 'settings.json'), ['settings.json']);
-  assert.equal(ourCommands(readSettings(projectDir)).length, 4);
+  assert.equal(ourCommands(readSettings(projectDir)).length, TEAM_HOOKS);
   assert.deepEqual(validate(projectDir).errors, []);
 });
 
@@ -224,10 +226,10 @@ test('settings.json du projet : réglages conservés, hooks de l\'équipe ajout�
   assert.ok(merged.permissions.allow.includes('Bash(make test)'));
   assert.ok(merged.permissions.allow.some((a) => a.includes('run-checks.mjs')));
   assert.ok(merged.hooks.PreToolUse.some((g) => g.hooks[0].command === 'node scripts/own-hook.mjs'));
-  assert.equal(ourCommands(merged).length, 4);
+  assert.equal(ourCommands(merged).length, TEAM_HOOKS);
 
   assert.deepEqual(byAction(run(), 'unchanged').filter((f) => f === 'settings.json'), ['settings.json']);
-  assert.equal(ourCommands(readSettings(projectDir)).length, 4);
+  assert.equal(ourCommands(readSettings(projectDir)).length, TEAM_HOOKS);
 });
 
 test('settings.json : un hook ou une permission retirés du template disparaissent, ceux du projet restent', () => {
@@ -238,6 +240,7 @@ test('settings.json : un hook ou une permission retirés du template disparaisse
   writeFileSync(join(projectDir, '.claude/settings.json'), JSON.stringify(settings));
 
   const template = JSON.parse(readFileSync(join(templateDir, 'settings.json'), 'utf8'));
+  const stopHooks = ourCommands({ hooks: { Stop: template.hooks.Stop } }).length;
   delete template.hooks.Stop;
   template.permissions.allow = template.permissions.allow.filter((a) => !a.includes('check-state'));
   writeFileSync(join(templateDir, 'settings.json'), JSON.stringify(template));
@@ -245,7 +248,7 @@ test('settings.json : un hook ou une permission retirés du template disparaisse
   assert.deepEqual(byAction(run(), 'merge'), ['settings.json']);
   const after = readSettings(projectDir);
   assert.equal(after.hooks.Stop, undefined);
-  assert.equal(ourCommands(after).length, 3);
+  assert.equal(ourCommands(after).length, TEAM_HOOKS - stopHooks);
   assert.ok(after.permissions.allow.includes('Bash(make test)'));
   assert.ok(!after.permissions.allow.some((a) => a.includes('check-state')));
 });
