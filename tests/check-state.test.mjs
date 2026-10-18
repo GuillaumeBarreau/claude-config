@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { checkState, planDigest, RUN_STATUSES } from '../template/.claude/skills/team/scripts/check-state.mjs';
-import { TEMPLATE_CLAUDE } from './helpers.mjs';
+import { TEMPLATE_CLAUDE, tempDir, writeFile } from './helpers.mjs';
 
 const EXAMPLE = join(TEMPLATE_CLAUDE, 'skills/team/templates/state.json');
 const SCRIPT = join(TEMPLATE_CLAUDE, 'skills/team/scripts/check-state.mjs');
@@ -177,8 +177,19 @@ test('blocked exige une raison ; awaiting_input exige une question', () => {
 });
 
 test('ligne de commande : 0 sur le modèle, 1 sur un fichier invalide', () => {
-  assert.match(execFileSync(process.execPath, [SCRIPT, EXAMPLE], { encoding: 'utf8' }), /OK/);
-  assert.throws(() => execFileSync(process.execPath, [SCRIPT, SCRIPT], { stdio: 'pipe' }), (err) => err.status === 1);
+  // cwd sans .claude/ : la CLI ne lit pas le team.json installé à la racine du dépôt.
+  const cwd = tempDir();
+  assert.match(execFileSync(process.execPath, [SCRIPT, EXAMPLE], { encoding: 'utf8', cwd }), /OK/);
+  assert.throws(() => execFileSync(process.execPath, [SCRIPT, SCRIPT], { stdio: 'pipe', cwd }), (err) => err.status === 1);
+});
+
+test('ligne de commande : le team.json du dossier courant impose ses contrôles obligatoires', () => {
+  const cwd = tempDir();
+  writeFile(join(cwd, '.claude/team.json'), JSON.stringify({ checks: [{ name: 'contrôle-absent', command: 'true', required: true }] }));
+  assert.throws(
+    () => execFileSync(process.execPath, [SCRIPT, EXAMPLE], { stdio: 'pipe', encoding: 'utf8', cwd }),
+    (err) => err.status === 1 && /contrôle-absent/.test(err.stderr),
+  );
 });
 
 // --- Exécution et autonomie ---
