@@ -19,5 +19,28 @@
     "maxChangedLines": 400,
     "labels": []
   },
+  "sensitivePaths": [],
+  "escalationModel": "opus",
+  "ci": {
+    "enabled": true,
+    "timeoutMinutes": 30,
+    "maxFixRounds": 2
+  },
+  "prComments": {
+    "allowedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+  },
+  "lessons": {
+    "enabled": true,
+    "maxEntries": 30
+  },
+  "backlog": {
+    "label": "agent-ready",
+    "draftPr": false,
+    "maxIssues": 3,
+    "maxBudgetUsd": 5
+  },
+  "parallel": {
+    "enabled": false
+  },
   "checks": []
 }

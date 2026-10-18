@@ -186,3 +186,70 @@ test('team.json : pullRequest mal typé ou titlePattern invalide', () => {
   assert.match(errors, /pullRequest\.titlePattern : expression régulière invalide/);
   assert.match(errors, /pullRequest\.labels : doit être une liste/);
 });
+
+// --- Clés facultatives de team.json (contrat §2.4, lot D) ---
+
+const withTeam = (patch) => {
+  const root = templateCopy();
+  const path = join(root, '.claude/team.json');
+  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), ...patch }));
+  return root;
+};
+
+test('team.json : le modèle déclare les valeurs par défaut des clés facultatives', () => {
+  const config = JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'team.json'), 'utf8'));
+  assert.deepEqual(config.sensitivePaths, []);
+  assert.equal(config.escalationModel, 'opus');
+  assert.deepEqual(Object.keys(config.ci).sort(), ['enabled', 'maxFixRounds', 'timeoutMinutes']);
+  assert.deepEqual(config.prComments.allowedAssociations, ['OWNER', 'MEMBER', 'COLLABORATOR']);
+  assert.deepEqual(Object.keys(config.lessons).sort(), ['enabled', 'maxEntries']);
+  assert.equal(config.backlog.draftPr, false);
+  assert.deepEqual(config.parallel, { enabled: false });
+});
+
+test('team.json : chaque clé facultative mal typée est signalée', () => {
+  const errors = errorsOf(withTeam({
+    sensitivePaths: 'migrations/**',
+    escalationModel: 'gpt',
+    ci: { enabled: 'oui', timeoutMinutes: 0, maxFixRounds: -1 },
+    prComments: { allowedAssociations: ['OWNER', 'EVERYONE'] },
+    lessons: { enabled: 1, maxEntries: 0 },
+    backlog: { label: '', draftPr: 'non', maxIssues: 1.5, maxBudgetUsd: 0 },
+    parallel: { enabled: 'non' },
+  }));
+  for (const re of [
+    /sensitivePaths : doit être une liste de motifs/,
+    /escalationModel : « gpt » inconnu/,
+    /ci\.enabled : doit être true ou false/,
+    /ci\.timeoutMinutes : doit être un entier > 0/,
+    /ci\.maxFixRounds : doit être un entier ≥ 0/,
+    /prComments\.allowedAssociations : « EVERYONE » inconnue/,
+    /lessons\.enabled : doit être true ou false/,
+    /lessons\.maxEntries : doit être un entier > 0/,
+    /backlog\.label : doit être un texte non vide/,
+    /backlog\.draftPr : doit être true ou false/,
+    /backlog\.maxIssues : doit être un entier > 0/,
+    /backlog\.maxBudgetUsd : doit être un nombre > 0/,
+    /parallel\.enabled : doit être true ou false/,
+  ]) {
+    assert.match(errors, re);
+  }
+});
+
+test('team.json : sections facultatives qui ne sont pas des objets, motifs vides', () => {
+  const errors = errorsOf(withTeam({ ci: true, prComments: [], lessons: 'oui', backlog: null, parallel: 1, sensitivePaths: ['ok/**', ''] }));
+  for (const key of ['ci', 'prComments', 'lessons', 'backlog', 'parallel']) {
+    assert.match(errors, new RegExp(`team\\.json : ${key} : doit être un objet`));
+  }
+  assert.match(errors, /sensitivePaths : doit être une liste de motifs/);
+});
+
+test('team.json : parallel.enabled à true est réservé (avertissement)', () => {
+  const { errors, warnings } = validate(withTeam({ parallel: { enabled: true } }));
+  assert.deepEqual(errors, []);
+  assert.match(warnings.join('\n'), /parallel\.enabled : réservé/);
+});
+
+test('team.json : escalationModel accepte un identifiant claude-*', () => {
+  assert.deepEqual(validate(withTeam({ escalationModel: 'claude-opus-5-5' })).errors, []);
+});

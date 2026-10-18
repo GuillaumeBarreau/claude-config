@@ -225,6 +225,74 @@ function checkPullRequest(pr, errors) {
   if (pr.labels !== undefined && !Array.isArray(pr.labels)) errors.push(`${where}.labels : doit être une liste`);
 }
 
+// Associations GitHub d'un auteur (author_association), pour prComments.
+const ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'MANNEQUIN', 'NONE'];
+const isObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+const isInt = (v, min) => Number.isInteger(v) && v >= min;
+
+// Clés facultatives (défauts dans les scripts) : sensitivePaths, escalationModel, ci,
+// prComments, lessons, backlog, parallel. Une valeur mal typée serait ignorée ou mal
+// lue par le script qui la consomme, sans erreur visible.
+function checkOptionalKeys(config, errors, warnings) {
+  const err = (key, msg) => errors.push(`team.json : ${key} : ${msg}`);
+  const bool = (key, v) => v !== undefined && typeof v !== 'boolean' && err(key, 'doit être true ou false');
+  const int = (key, v, min) => v !== undefined && !isInt(v, min) && err(key, `doit être un entier ${min ? '> 0' : '≥ 0'}`);
+
+  const patterns = config.sensitivePaths;
+  if (patterns !== undefined && !(Array.isArray(patterns) && patterns.every((p) => typeof p === 'string' && p.trim()))) {
+    err('sensitivePaths', 'doit être une liste de motifs (textes non vides)');
+  }
+  const model = config.escalationModel;
+  if (model !== undefined && !(typeof model === 'string' && (MODELS.includes(model) || /^claude-/.test(model)))) {
+    err('escalationModel', `« ${model} » inconnu (${MODELS.join(', ')} ou identifiant claude-*)`);
+  }
+  const section = (key) => {
+    const value = config[key];
+    if (value === undefined) return null;
+    if (!isObject(value)) {
+      err(key, 'doit être un objet');
+      return null;
+    }
+    return value;
+  };
+  const ci = section('ci');
+  if (ci) {
+    bool('ci.enabled', ci.enabled);
+    int('ci.timeoutMinutes', ci.timeoutMinutes, 1);
+    int('ci.maxFixRounds', ci.maxFixRounds, 0);
+  }
+  const pr = section('prComments');
+  if (pr && pr.allowedAssociations !== undefined) {
+    if (!Array.isArray(pr.allowedAssociations)) err('prComments.allowedAssociations', 'doit être une liste');
+    else {
+      for (const a of pr.allowedAssociations.filter((x) => !ASSOCIATIONS.includes(x))) {
+        err('prComments.allowedAssociations', `« ${a} » inconnue (${ASSOCIATIONS.join(', ')})`);
+      }
+    }
+  }
+  const lessons = section('lessons');
+  if (lessons) {
+    bool('lessons.enabled', lessons.enabled);
+    int('lessons.maxEntries', lessons.maxEntries, 1);
+  }
+  const backlog = section('backlog');
+  if (backlog) {
+    if (backlog.label !== undefined && !(typeof backlog.label === 'string' && backlog.label.trim())) {
+      err('backlog.label', 'doit être un texte non vide');
+    }
+    bool('backlog.draftPr', backlog.draftPr);
+    int('backlog.maxIssues', backlog.maxIssues, 1);
+    if (backlog.maxBudgetUsd !== undefined && !(typeof backlog.maxBudgetUsd === 'number' && backlog.maxBudgetUsd > 0)) {
+      err('backlog.maxBudgetUsd', 'doit être un nombre > 0');
+    }
+  }
+  const parallel = section('parallel');
+  if (parallel) {
+    bool('parallel.enabled', parallel.enabled);
+    if (parallel.enabled === true) warnings.push('team.json : parallel.enabled : réservé, sans effet pour l\'instant (voir ADR 0006)');
+  }
+}
+
 function readJson(path, label, errors) {
   try {
     return JSON.parse(readFileSync(path, 'utf8').replace(/^﻿/, ''));
@@ -234,7 +302,7 @@ function readJson(path, label, errors) {
   }
 }
 
-function checkTeamConfig(claudeDir, agents, errors) {
+function checkTeamConfig(claudeDir, agents, errors, warnings) {
   const path = join(claudeDir, 'team.json');
   if (!existsSync(path)) {
     errors.push('team.json : absent');
@@ -251,6 +319,7 @@ function checkTeamConfig(claudeDir, agents, errors) {
     errors.push(`team.json : « autonomy » doit valoir ${AUTONOMY.join(' ou ')} (actuel : ${config.autonomy})`);
   }
   checkPullRequest(config.pullRequest, errors);
+  checkOptionalKeys(config, errors, warnings);
   for (const [name, enabled] of Object.entries(config.agents ?? {})) {
     if (enabled === true && !agents.has(name)) errors.push(`team.json : agent « ${name} » activé mais agents/${name}.md absent`);
   }
@@ -283,7 +352,7 @@ export function validate(root) {
   const skills = loadSkills(claudeDir, errors);
   checkSkills(skills, managed, errors, warnings);
   const agents = checkAgents(claudeDir, skills, managed, errors, warnings);
-  checkTeamConfig(claudeDir, agents, errors);
+  checkTeamConfig(claudeDir, agents, errors, warnings);
   const settings = join(claudeDir, 'settings.json');
   if (existsSync(settings)) checkSettings(claudeDir, readJson(settings, 'settings.json', errors), errors, warnings);
   return { errors, warnings };
