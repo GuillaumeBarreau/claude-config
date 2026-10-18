@@ -4,7 +4,7 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { GITIGNORE_ENTRY, hashOf, install, MANIFEST, mergeSettings } from '../install.mjs';
+import { CLAUDE_IGNORE_ENTRY, GITIGNORE_ENTRY, hashOf, install, main as installMain, MANIFEST, mergeSettings } from '../install.mjs';
 import { validate } from '../validate.mjs';
 import { REPO_DIR, TEMPLATE_CLAUDE, tempDir, writeFile } from './helpers.mjs';
 
@@ -289,4 +289,69 @@ test('mergeSettings : fonction pure, ne modifie pas ses entrées', () => {
   const merged = mergeSettings(project, template, []);
   assert.equal(JSON.stringify(project), frozen);
   assert.deepEqual(ourCommands(merged), ['node "$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs"']);
+});
+
+// --- .claude/ dans le .gitignore du projet : sur demande, sans rien effacer ---
+
+const gitignoreOf = (projectDir) => readFileSync(join(projectDir, '.gitignore'), 'utf8');
+
+test('ignoreClaude : .claude/ ajouté à la fin du .gitignore, contenu existant conservé, sans doublon', () => {
+  const { projectDir, run } = setup();
+  writeFileSync(join(projectDir, '.gitignore'), 'node_modules/\ndist/');
+  const actions = run({ ignoreClaude: true });
+  assert.deepEqual(byAction(actions, 'gitignore-claude'), ['../.gitignore']);
+  assert.equal(gitignoreOf(projectDir), `node_modules/\ndist/\n${GITIGNORE_ENTRY}\n${CLAUDE_IGNORE_ENTRY}\n`);
+  run({ ignoreClaude: true });
+  assert.equal(gitignoreOf(projectDir).split('\n').filter((l) => l === CLAUDE_IGNORE_ENTRY).length, 1);
+});
+
+test('ignoreClaude : une variante déjà présente (.claude, /.claude/, .claude/*) n\'est pas dupliquée', () => {
+  for (const variant of ['.claude', '/.claude/', '.claude/*']) {
+    const { projectDir, run } = setup();
+    writeFileSync(join(projectDir, '.gitignore'), `${variant}\n`);
+    const actions = run({ ignoreClaude: true });
+    assert.deepEqual(byAction(actions, 'gitignore-claude'), [], variant);
+    assert.deepEqual(byAction(actions, 'gitignore-claude-present'), ['../.gitignore'], variant);
+    assert.doesNotMatch(gitignoreOf(projectDir), new RegExp(`^${CLAUDE_IGNORE_ENTRY.replace('.', '\.')}$`, 'm'), variant);
+  }
+});
+
+test('sans ignoreClaude (défaut) : .claude/ n\'est jamais ajouté', () => {
+  const { projectDir, run } = setup();
+  run();
+  assert.doesNotMatch(gitignoreOf(projectDir), /^\/?\.claude/m);
+});
+
+test('ligne de commande : --ignore-claude ajoute, --no-ignore-claude non, sans terminal la question n\'est pas posée', () => {
+  const cli = (...args) => spawnSync(process.execPath, [join(REPO_DIR, 'install.mjs'), ...args], { encoding: 'utf8', input: '' });
+  const yes = tempDir('projet-oui-');
+  assert.equal(cli(yes, '--ignore-claude').status, 0);
+  assert.match(gitignoreOf(yes), /^\.claude\/$/m);
+  const no = tempDir('projet-non-');
+  assert.equal(cli(no, '--no-ignore-claude').status, 0);
+  assert.doesNotMatch(gitignoreOf(no), /^\.claude\/$/m);
+  const silent = tempDir('projet-sans-');
+  const out = cli(silent);
+  assert.equal(out.status, 0);
+  assert.doesNotMatch(gitignoreOf(silent), /^\.claude\/$/m);
+  assert.match(out.stdout, /--ignore-claude/);
+});
+
+test('question interactive : « o » ajoute .claude/, une autre réponse non, déjà ignoré → pas de question', async () => {
+  const silentLog = { log: () => {}, warn: () => {}, error: () => {} };
+  const asked = [];
+  const oui = tempDir('projet-q-oui-');
+  await installMain(['node', 'install.mjs', oui], { interactive: true, ask: async (q) => { asked.push(q); return 'o'; }, ...silentLog });
+  assert.match(gitignoreOf(oui), /^\.claude\/$/m);
+  assert.match(asked[0], /\.gitignore/);
+
+  const non = tempDir('projet-q-non-');
+  await installMain(['node', 'install.mjs', non], { interactive: true, ask: async () => '', ...silentLog });
+  assert.doesNotMatch(gitignoreOf(non), /^\.claude\/$/m);
+
+  const deja = tempDir('projet-q-deja-');
+  writeFileSync(join(deja, '.gitignore'), '.claude\n');
+  let questions = 0;
+  await installMain(['node', 'install.mjs', deja], { interactive: true, ask: async () => { questions += 1; return 'o'; }, ...silentLog });
+  assert.equal(questions, 0);
 });

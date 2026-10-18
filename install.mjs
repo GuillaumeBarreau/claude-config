@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Installe ou met à jour la configuration de l'équipe d'agents dans un projet.
 //
-// Usage : node install.mjs <dossier-du-projet> [--dry-run] [--force]
+// Usage : node install.mjs <dossier-du-projet> [--dry-run] [--force] [--ignore-claude | --no-ignore-claude]
 //
 // - Copie template/.claude/ dans <projet>/.claude/.
 // - Un manifeste (.claude/claude-config.manifest.json) garde l'empreinte de chaque
@@ -13,6 +13,9 @@
 //   .claude/hooks/team/) et ses permissions remplacent ceux de l'installation
 //   précédente ; tout le reste du fichier du projet est conservé.
 // - Ajoute .agent-runs/ au .gitignore du projet.
+// - Propose (terminal interactif) ou applique (--ignore-claude) l'ajout de .claude/ au
+//   .gitignore, seulement si aucune entrée équivalente n'y est déjà ; ajout en fin de
+//   fichier, le reste n'est jamais modifié.
 //
 // Sortie : 0 si tout est appliqué, 2 s'il reste des conflits, 1 en cas d'erreur.
 
@@ -31,7 +34,25 @@ export const PROJECT_OWNED = [
 export const MERGED = 'settings.json';
 const isTeamHook = (hook) => typeof hook?.command === 'string' && hook.command.includes('.claude/hooks/team/');
 export const GITIGNORE_ENTRY = '.agent-runs/';
-const GITIGNORE_VARIANTS = ['.agent-runs', '.agent-runs/', '/.agent-runs', '/.agent-runs/', '.agent-runs/*', '/.agent-runs/*'];
+export const CLAUDE_IGNORE_ENTRY = '.claude/';
+const variantsOf = (name) => [name, `${name}/`, `/${name}`, `/${name}/`, `${name}/*`, `/${name}/*`, `${name}/**`, `/${name}/**`];
+const GITIGNORE_VARIANTS = variantsOf('.agent-runs');
+const CLAUDE_IGNORE_VARIANTS = variantsOf('.claude');
+
+/** Le .gitignore du projet contient-il déjà l'une de ces entrées (lignes exactes) ? */
+export function gitignoreHas(projectDir, variants) {
+  const path = join(projectDir, '.gitignore');
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  return text.split(/\r?\n/).map((l) => l.trim()).some((l) => variants.includes(l));
+}
+
+/** Ajoute l'entrée à la fin du .gitignore (créé s'il manque), sans toucher au reste. */
+function appendGitignore(projectDir, entry) {
+  const path = join(projectDir, '.gitignore');
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const prefix = text && !text.endsWith('\n') ? '\n' : '';
+  writeFileSync(path, `${text}${prefix}${entry}\n`);
+}
 
 const samePath = (a, b) => (process.platform === 'win32'
   ? resolve(a).toLowerCase() === resolve(b).toLowerCase()
@@ -134,7 +155,7 @@ function installSettings({ templateDir, claudeDir, previous, dryRun }) {
  * { file, action } avec action ∈ add, update, unchanged, keep, conflict, overwrite,
  * remove, keep-modified, gitignore.
  */
-export function install({ templateDir, projectDir, version, dryRun = false, force = false }) {
+export function install({ templateDir, projectDir, version, dryRun = false, force = false, ignoreClaude = false }) {
   if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
     throw new Error(`${projectDir} : dossier de projet introuvable`);
   }
@@ -216,15 +237,19 @@ export function install({ templateDir, projectDir, version, dryRun = false, forc
     }
   }
 
-  const gitignore = join(projectDir, '.gitignore');
-  const ignored = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
-  const lines = ignored.split(/\r?\n/).map((l) => l.trim());
-  if (!lines.some((l) => GITIGNORE_VARIANTS.includes(l))) {
-    if (!dryRun) {
-      const prefix = ignored && !ignored.endsWith('\n') ? '\n' : '';
-      writeFileSync(gitignore, `${ignored}${prefix}${GITIGNORE_ENTRY}\n`);
-    }
+  if (!gitignoreHas(projectDir, GITIGNORE_VARIANTS)) {
+    if (!dryRun) appendGitignore(projectDir, GITIGNORE_ENTRY);
     actions.push({ file: '../.gitignore', action: 'gitignore' });
+  }
+  // Configuration Claude hors de Git : seulement sur demande (elle n'est alors plus
+  // partagée avec l'équipe par le dépôt).
+  if (ignoreClaude) {
+    if (gitignoreHas(projectDir, CLAUDE_IGNORE_VARIANTS)) {
+      actions.push({ file: '../.gitignore', action: 'gitignore-claude-present' });
+    } else {
+      if (!dryRun) appendGitignore(projectDir, CLAUDE_IGNORE_ENTRY);
+      actions.push({ file: '../.gitignore', action: 'gitignore-claude' });
+    }
   }
 
   if (!dryRun) {
@@ -249,47 +274,88 @@ const LABELS = {
   merge: "fusionné (hooks et permissions de l'équipe)",
   'unsafe-path': 'IGNORÉ — chemin du manifeste hors de .claude/',
   gitignore: `ajout de ${GITIGNORE_ENTRY}`,
+  'gitignore-claude': `ajout de ${CLAUDE_IGNORE_ENTRY}`,
+  'gitignore-claude-present': `${CLAUDE_IGNORE_ENTRY} déjà ignoré`,
 };
 
-function main(argv) {
+/** Question posée dans le terminal (o/N). */
+async function askInTerminal(question) {
+  const { createInterface } = await import('node:readline/promises');
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await rl.question(question);
+  } finally {
+    rl.close();
+  }
+}
+
+const IGNORE_QUESTION = `Ajouter ${CLAUDE_IGNORE_ENTRY} au .gitignore du projet ? La configuration Claude ne sera `
+  + 'alors plus partagée avec l\'équipe par Git. [o/N] ';
+
+/**
+ * Ligne de commande. deps (tests) : interactive, ask(question), log, warn, error.
+ * Sortie : 0 tout appliqué, 2 conflits restants, 1 erreur.
+ */
+export async function main(argv, deps = {}) {
+  const {
+    interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    ask = askInTerminal,
+    log = console.log, warn = console.warn, error = console.error,
+  } = deps;
   const args = argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const force = args.includes('--force');
   const target = args.find((a) => !a.startsWith('--'));
   if (!target) {
-    console.error('Usage : node install.mjs <dossier-du-projet> [--dry-run] [--force]');
+    error('Usage : node install.mjs <dossier-du-projet> [--dry-run] [--force] [--ignore-claude | --no-ignore-claude]');
     return 1;
   }
   const projectDir = resolve(target);
   const { version } = JSON.parse(readFileSync(join(REPO_DIR, 'package.json'), 'utf8'));
   if (!existsSync(join(projectDir, '.git'))) {
-    console.warn(`avertissement : ${projectDir} n'est pas la racine d'un dépôt Git`);
+    warn(`avertissement : ${projectDir} n'est pas la racine d'un dépôt Git`);
   }
+
+  // .claude/ dans le .gitignore : option explicite, sinon question si le terminal est
+  // interactif et que l'entrée n'existe pas déjà ; sinon rien.
+  let ignoreClaude = false;
+  let ignoreHint = false;
+  if (args.includes('--ignore-claude')) ignoreClaude = true;
+  else if (!args.includes('--no-ignore-claude') && existsSync(projectDir)
+      && !gitignoreHas(projectDir, CLAUDE_IGNORE_VARIANTS)) {
+    if (interactive && !dryRun) ignoreClaude = /^\s*(o|oui|y|yes)\s*$/i.test(await ask(IGNORE_QUESTION));
+    else ignoreHint = true;
+  }
+
   let actions;
   try {
-    actions = install({ templateDir: join(REPO_DIR, 'template', '.claude'), projectDir, version, dryRun, force });
+    actions = install({ templateDir: join(REPO_DIR, 'template', '.claude'), projectDir, version, dryRun, force, ignoreClaude });
   } catch (err) {
-    console.error(`erreur : ${err.message}`);
+    error(`erreur : ${err.message}`);
     return 1;
   }
-  console.log(`${dryRun ? '[simulation] ' : ''}claude-config ${version} → ${projectDir}`);
+  log(`${dryRun ? '[simulation] ' : ''}claude-config ${version} → ${projectDir}`);
   for (const { file, action } of actions) {
-    if (action !== 'unchanged') console.log(`  ${LABELS[action].padEnd(28)} ${file}`);
+    if (action !== 'unchanged') log(`  ${LABELS[action].padEnd(28)} ${file}`);
   }
   const unchanged = actions.filter((a) => a.action === 'unchanged').length;
-  if (unchanged) console.log(`  ${unchanged} fichier(s) inchangé(s)`);
+  if (unchanged) log(`  ${unchanged} fichier(s) inchangé(s)`);
+  if (ignoreHint) {
+    log(`\n${CLAUDE_IGNORE_ENTRY} n'est pas dans le .gitignore : relance avec --ignore-claude pour l'y ajouter `
+      + '(ou --no-ignore-claude pour ne plus le proposer dans un script).');
+  }
   const conflicts = actions.filter((a) => a.action === 'conflict');
   if (conflicts.length) {
-    console.log(`\n${conflicts.length} conflit(s) : compare avec template/.claude/, puis relance avec --force pour remplacer.`);
+    log(`\n${conflicts.length} conflit(s) : compare avec template/.claude/, puis relance avec --force pour remplacer.`);
     if (conflicts.some((c) => c.file === MERGED)) {
-      console.log('settings.json est illisible : corrige son JSON puis relance (il n\'est jamais écrasé, même avec --force).');
+      log('settings.json est illisible : corrige son JSON puis relance (il n\'est jamais écrasé, même avec --force).');
     }
     return 2;
   }
-  if (!dryRun) console.log('\nÉtape suivante : dans le projet, lance Claude Code puis /team-init.');
+  if (!dryRun) log('\nÉtape suivante : dans le projet, lance Claude Code puis /team-init.');
   return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main(process.argv));
+  main(process.argv).then((code) => process.exit(code));
 }

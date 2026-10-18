@@ -88,7 +88,7 @@ Prérequis : Node ≥ 20, Git, Claude Code ; `gh` authentifié pour la CI et les
 ```bash
 git clone <ce dépôt> claude-config
 node claude-config/install.mjs <chemin/du/projet> --dry-run   # voir ce qui changerait
-node claude-config/install.mjs <chemin/du/projet>             # appliquer
+node claude-config/install.mjs <chemin/du/projet>             # appliquer (demande s'il faut ignorer .claude/ dans Git)
 ```
 
 Puis, dans le projet : lancer Claude Code et taper `/team-init` pour découvrir et

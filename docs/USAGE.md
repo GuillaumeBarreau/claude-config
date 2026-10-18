@@ -21,6 +21,14 @@ node <claude-config>/install.mjs <projet>
 
 Code de sortie : 0 tout appliqué, 2 conflits restants, 1 erreur.
 
+**Ignorer la configuration Claude ?** À l'installation, si `.claude/` n'est pas déjà dans
+le `.gitignore` du projet (sous une forme quelconque : `.claude`, `/.claude/`,
+`.claude/*`…), l'installeur demande s'il faut l'ajouter. L'entrée est ajoutée à la fin du
+fichier, sans rien modifier d'autre. Pour un script : `--ignore-claude` (ajouter) ou
+`--no-ignore-claude` (ne pas demander). Sans terminal interactif, rien n'est ajouté et
+l'installeur rappelle l'option. Attention : une configuration ignorée n'est plus
+partagée avec l'équipe par Git.
+
 `settings.json` n'est jamais copié par-dessus le tien : l'installeur retire les hooks
 de l'équipe (ceux sous `.claude/hooks/team/`) et les permissions qu'il avait ajoutées,
 puis remet ceux du template. Tes propres hooks, permissions et réglages restent. Un
