@@ -209,7 +209,7 @@ export function latestRun(dir) {
   return runs[0] ?? null;
 }
 
-function eligibility(issue, config, { requireLabel }) {
+export function eligibility(issue, config, { requireLabel }) {
   const labels = (issue.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name));
   if (issue.pull_request) return 'pull request, pas une issue';
   if (issue.state !== 'open') return `issue ${issue.state}`;

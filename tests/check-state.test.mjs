@@ -411,3 +411,11 @@ test('R5 : valeurs d\'origin, ci.status, scope.status ; splitFrom ; newFiles', (
   v1.tasks[0].origin = 'manuel';
   assert.deepEqual(checkState(v1), []);
 });
+
+test('issue : numéro d\'issue facultatif (run lancé par /team-next), entier positif', () => {
+  const state = example();
+  state.issue = 12;
+  assert.deepEqual(checkState(state), []);
+  state.issue = '12';
+  assert.match(errorsOf(state), /issue : doit être un entier > 0/);
+});

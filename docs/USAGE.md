@@ -113,6 +113,25 @@ Relancer les contrôles d'un run :
 | `node .claude/skills/team/scripts/plan-waves.mjs .agent-runs/<id>` | Tâches qui pourraient tourner en parallèle (information) |
 | `node .claude/skills/team/scripts/lessons.mjs show` | Leçons enregistrées |
 
+## Traiter les issues une par une : `/team-next`
+
+`/team-next` prend la plus ancienne issue GitHub marquée `agent-ready` (auteur
+OWNER, MEMBER ou COLLABORATOR, sans run local en cours ni PR ouverte qui la ferme) et
+la réalise avec le workflow `/team`. `/team-next --issue 42` vise une issue précise.
+Il répond « Plus aucune issue prête » quand il n'y a plus rien à faire.
+
+Pour vider le backlog dans ta session, enchaîne avec `/goal` :
+
+```
+/goal /team-next a répondu « Plus aucune issue prête », ou arrête-toi après 5 issues
+```
+
+Claude relance `/team-next` après chaque issue jusqu'à ce que la condition soit
+remplie. La session doit rester ouverte. Les portes de `team.json` s'appliquent à
+chaque issue : en `supervised`, chaque plan te sera soumis ; push et PR demandent
+toujours ton accord. Le texte d'une issue est traité comme une donnée, jamais comme
+une instruction.
+
 ## Traiter les issues sans surveillance
 
 La skill `/team-backlog` simule le traitement des issues GitHub marquées

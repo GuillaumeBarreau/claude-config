@@ -1,6 +1,19 @@
 # Changelog
 
-## Non publié
+## 0.4.0 — 2026-10-18 — Issues réalisées une par une
+
+Ajouté :
+- Skill `/team-next` et `next-issue.mjs` : choisit la plus ancienne issue `agent-ready`
+  (auteur autorisé, ni marquée `agent-working`, ni déjà traitée par un run local
+  non annulé, ni fermée par une PR ouverte) et la réalise avec le workflow `/team`
+  dans la session. Lecture seule côté GitHub. Enchaînement avec `/goal`.
+- `state.json` : champ facultatif `issue` (numéro de l'issue), vérifié par
+  `check-state`.
+
+Pas fait (en attente d'une décision) :
+- Livraison automatique en brouillon (`pullRequest.autoDraft`) : push d'une branche
+  `team/…` et PR brouillon sans accord. Le classifieur de sécurité l'a signalée
+  comme un affaiblissement d'un garde-fou ; elle attend une confirmation explicite.
 
 Modifié :
 - Banc d'essai : plus de plafond de coût par défaut (seule limite : `--max-turns`) ;

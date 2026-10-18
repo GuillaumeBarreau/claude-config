@@ -396,6 +396,9 @@ export function checkState(state, team = null) {
   oneOf(errors, 'track', state.track, TRACKS);
   oneOf(errors, 'status', state.status, RUN_STATUSES);
   if (state.autonomy !== undefined) oneOf(errors, 'autonomy', state.autonomy, AUTONOMY);
+  if (state.issue !== undefined && state.issue !== null && !(Number.isInteger(state.issue) && state.issue > 0)) {
+    errors.push(`issue : doit être un entier > 0 (numéro de l'issue GitHub), pas « ${state.issue} »`);
+  }
   if (!isArray(state.log)) errors.push('log : doit être une liste');
   if (state.schemaVersion !== undefined && !(Number.isInteger(state.schemaVersion) && state.schemaVersion >= 1)) {
     errors.push(`schemaVersion : entier ≥ 1 attendu (actuel : ${state.schemaVersion})`);

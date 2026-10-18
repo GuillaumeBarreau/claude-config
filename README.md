@@ -89,6 +89,9 @@ ils sont signalés en conflit. Usage détaillé : [docs/USAGE.md](docs/USAGE.md)
 
 ## Autres skills
 
+- `/team-next` : prend la prochaine issue GitHub prête et la réalise avec `/team`.
+  Avec `/goal`, enchaîne les issues jusqu'à ce qu'il n'en reste plus (voir
+  [docs/USAGE.md](docs/USAGE.md)).
 - `/team-backlog` : simulation du traitement automatique des issues GitHub marquées
   `agent-ready`. Le mode réel se planifie hors session (cron, Planificateur de tâches
   Windows, GitHub Actions), sans push ni PR par défaut. Voir

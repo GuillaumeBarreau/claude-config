@@ -13,7 +13,8 @@
       "Bash(node .claude/skills/team/scripts/ci-wait.mjs *)",
       "Bash(node .claude/skills/team/scripts/pr-comments.mjs *)",
       "Bash(node .claude/skills/team/scripts/lessons.mjs *)",
-      "Bash(node .claude/skills/team/scripts/plan-waves.mjs *)"
+      "Bash(node .claude/skills/team/scripts/plan-waves.mjs *)",
+      "Bash(node .claude/skills/team-next/scripts/next-issue.mjs *)"
     ]
   },
   "hooks": {
@@ -21,13 +22,21 @@
       {
         "matcher": "Bash|PowerShell",
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/guard-bash.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/guard-bash.mjs\"",
+            "timeout": 15
+          }
         ]
       },
       {
         "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Grep",
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/guard-files.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/guard-files.mjs\"",
+            "timeout": 15
+          }
         ]
       }
     ],
@@ -35,13 +44,21 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-run-state.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-run-state.mjs\"",
+            "timeout": 15
+          }
         ]
       },
       {
         "matcher": "Agent|Task",
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"",
+            "timeout": 15
+          }
         ]
       }
     ],
@@ -49,15 +66,27 @@
       {
         "matcher": "planner|implementer|code-reviewer",
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-deliverable.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/check-deliverable.mjs\"",
+            "timeout": 15
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs\"", "timeout": 15 },
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"", "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs\"",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/team/record-metrics.mjs\"",
+            "timeout": 15
+          }
         ]
       }
     ]
