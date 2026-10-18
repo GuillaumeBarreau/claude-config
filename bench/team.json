@@ -1,0 +1,25 @@
+{
+  "$comment": "team.json du projet d'essai du banc (bench/run.mjs prepare) : initialisé, en autonomie, un seul contrôle obligatoire.",
+  "version": 1,
+  "initialized": true,
+  "baseBranch": "main",
+  "branchPrefix": "team/",
+  "commitConvention": "",
+  "autonomy": "autonomous",
+  "maxAttempts": 2,
+  "maxClarificationRounds": 2,
+  "agents": {
+    "planner": true,
+    "implementer": true,
+    "code-reviewer": true
+  },
+  "pullRequest": {
+    "draft": true,
+    "titlePattern": "",
+    "maxChangedLines": 400,
+    "labels": []
+  },
+  "checks": [
+    { "name": "tests", "command": "npm test", "required": true }
+  ]
+}

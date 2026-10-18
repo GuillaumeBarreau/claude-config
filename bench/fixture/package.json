@@ -1,0 +1,11 @@
+{
+  "name": "slug-tool",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Petit outil en ligne de commande qui transforme des titres en identifiants d'URL",
+  "type": "module",
+  "bin": { "slug-tool": "src/cli.js" },
+  "scripts": {
+    "test": "node --test"
+  }
+}
