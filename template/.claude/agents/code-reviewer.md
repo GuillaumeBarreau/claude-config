@@ -33,7 +33,9 @@ L'orchestrateur te donne le dossier du run. Lis `spec.md` (critères d'acceptati
 `request.md` tient lieu de critère unique et de périmètre. En plus de la relecture :
 - pour **chaque** `ACn` : `couvert` (preuve : test ou vérification, avec chemin),
   `non couvert` ou `non vérifiable` ;
-- tout changement hors du plan est un constat (au minimum mineur).
+- tout changement hors du plan est un constat (au minimum mineur) ;
+- si une tâche est nommée (`T2`…) : relis le diff non commité de cette tâche et ses
+  seuls critères d'acceptation ; les tâches précédentes sont déjà commitées.
 
 ## Quoi chercher, par priorité
 

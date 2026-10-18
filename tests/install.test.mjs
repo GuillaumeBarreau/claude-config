@@ -4,7 +4,7 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { GITIGNORE_ENTRY, hashOf, install, MANIFEST } from '../install.mjs';
+import { GITIGNORE_ENTRY, hashOf, install, MANIFEST, mergeSettings } from '../install.mjs';
 import { validate } from '../validate.mjs';
 import { REPO_DIR, TEMPLATE_CLAUDE, tempDir, writeFile } from './helpers.mjs';
 
@@ -194,4 +194,74 @@ test('ligne de commande : 0 si appliqué, 2 en cas de conflit, 1 sans projet', (
 test('projet inexistant : erreur', () => {
   const { templateDir } = setup();
   assert.throws(() => install({ templateDir, projectDir: join(tempDir(), 'absent'), version: 'test' }), /introuvable/);
+});
+
+// --- settings.json : fusionné, jamais remplacé ---
+
+const readSettings = (projectDir) => JSON.parse(readFileSync(join(projectDir, '.claude/settings.json'), 'utf8'));
+const ourCommands = (settings) => Object.values(settings.hooks ?? {}).flat()
+  .flatMap((g) => g.hooks).map((h) => h.command).filter((c) => c.includes('.claude/hooks/team/'));
+
+test('settings.json absent : créé avec les hooks de l\'équipe', () => {
+  const { projectDir, run } = setup();
+  assert.deepEqual(byAction(run(), 'add').filter((f) => f === 'settings.json'), ['settings.json']);
+  assert.equal(ourCommands(readSettings(projectDir)).length, 4);
+  assert.deepEqual(validate(projectDir).errors, []);
+});
+
+test('settings.json du projet : réglages conservés, hooks de l\'équipe ajoutés une seule fois', () => {
+  const { projectDir, run } = setup();
+  const own = {
+    model: 'opus',
+    permissions: { allow: ['Bash(make test)'], deny: ['Bash(curl *)'] },
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node scripts/own-hook.mjs' }] }] },
+  };
+  writeFile(join(projectDir, '.claude/settings.json'), JSON.stringify(own));
+  assert.deepEqual(byAction(run(), 'merge'), ['settings.json']);
+  const merged = readSettings(projectDir);
+  assert.equal(merged.model, 'opus');
+  assert.deepEqual(merged.permissions.deny, ['Bash(curl *)']);
+  assert.ok(merged.permissions.allow.includes('Bash(make test)'));
+  assert.ok(merged.permissions.allow.some((a) => a.includes('run-checks.mjs')));
+  assert.ok(merged.hooks.PreToolUse.some((g) => g.hooks[0].command === 'node scripts/own-hook.mjs'));
+  assert.equal(ourCommands(merged).length, 4);
+
+  assert.deepEqual(byAction(run(), 'unchanged').filter((f) => f === 'settings.json'), ['settings.json']);
+  assert.equal(ourCommands(readSettings(projectDir)).length, 4);
+});
+
+test('settings.json : un hook ou une permission retirés du template disparaissent, ceux du projet restent', () => {
+  const { templateDir, projectDir, run } = setup();
+  run();
+  const settings = readSettings(projectDir);
+  settings.permissions.allow.push('Bash(make test)');
+  writeFileSync(join(projectDir, '.claude/settings.json'), JSON.stringify(settings));
+
+  const template = JSON.parse(readFileSync(join(templateDir, 'settings.json'), 'utf8'));
+  delete template.hooks.Stop;
+  template.permissions.allow = template.permissions.allow.filter((a) => !a.includes('check-state'));
+  writeFileSync(join(templateDir, 'settings.json'), JSON.stringify(template));
+
+  assert.deepEqual(byAction(run(), 'merge'), ['settings.json']);
+  const after = readSettings(projectDir);
+  assert.equal(after.hooks.Stop, undefined);
+  assert.equal(ourCommands(after).length, 3);
+  assert.ok(after.permissions.allow.includes('Bash(make test)'));
+  assert.ok(!after.permissions.allow.some((a) => a.includes('check-state')));
+});
+
+test('settings.json illisible : conflit, fichier intact, code 2', () => {
+  const { projectDir, run } = setup();
+  writeFile(join(projectDir, '.claude/settings.json'), '{ "hooks": ');
+  assert.deepEqual(byAction(run(), 'conflict'), ['settings.json']);
+  assert.equal(readFileSync(join(projectDir, '.claude/settings.json'), 'utf8'), '{ "hooks": ');
+});
+
+test('mergeSettings : fonction pure, ne modifie pas ses entrées', () => {
+  const project = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/team/ancien.mjs"' }] }] } };
+  const template = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs"' }] }] } };
+  const frozen = JSON.stringify(project);
+  const merged = mergeSettings(project, template, []);
+  assert.equal(JSON.stringify(project), frozen);
+  assert.deepEqual(ourCommands(merged), ['node "$CLAUDE_PROJECT_DIR/.claude/hooks/team/keep-running.mjs"']);
 });

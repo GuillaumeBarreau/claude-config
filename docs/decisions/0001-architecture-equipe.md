@@ -9,12 +9,9 @@ développeurs, QA, relecteur, release) réutilisable dans tous les projets, supe
 qui va d'une demande à une PR prête à relire.
 
 Références étudiées :
-- VALORA : moteur autonome (Node, multi-fournisseurs, centré sur Cursor). Bon cycle
-  de travail et bonnes portes, mais ses portes ne sont que des consignes dans les
-  prompts, et son infrastructure (plugins, mémoire à décroissance, 130 prompts) est
-  disproportionnée.
-- claude-agent-framework : générateur par projet, agents courts, validateur et tests de
-  la configuration.
+- Moteurs d'agents autonomes existants : bon cycle planifier → vérifier le plan →
+  implémenter → tester → relire → livrer, mais des portes qui ne sont que des
+  consignes dans les prompts et une infrastructure disproportionnée.
 - Système d'agents de Chatlock : garde-fous déterministes, vérification à codes de
   sortie, worktree par tâche, limite de tentatives. Orienté backlog autonome et lié à
   Chatlock.

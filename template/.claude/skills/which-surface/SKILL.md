@@ -7,8 +7,6 @@ allowed-tools: Read, Grep, Glob
 Décide où placer un travail qu'on veut rendre reproductible. La plupart du temps, la
 réponse est « nulle part de nouveau ».
 
-Adapté de la skill `which-surface` de claude-agent-framework (ciscoittech, licence MIT).
-
 ## Pose les questions dans l'ordre. Prends le premier oui.
 
 1. **Cela doit-il arriver à chaque fois, même si le modèle est convaincu du

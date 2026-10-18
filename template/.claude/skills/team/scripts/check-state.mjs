@@ -27,6 +27,7 @@ export const COMPLEXITIES = ['S', 'M', 'L'];
 export const CHECK_STATUSES = ['not_run', 'passed', 'failed', 'n/a'];
 export const GATE_STATUSES = ['pending', 'passed', 'failed', 'waived'];
 export const GATES = ['plan', 'checks', 'review', 'delivery'];
+export const AUTONOMY = ['supervised', 'autonomous'];
 
 // Statuts qui supposent un plan validé (porte 1).
 const AFTER_PLAN = [
@@ -35,7 +36,15 @@ const AFTER_PLAN = [
 ];
 const CLEARED = ['passed', 'waived'];
 // Portes que seul l'utilisateur peut valider ; toute dérogation (waived) aussi.
+// Exception : en autonomie (team.json « autonomy »), l'orchestrateur peut valider le
+// plan s'il ne contient aucune tâche requiresHuman et que la piste n'est pas full.
 const USER_GATES = ['plan', 'delivery'];
+// Statuts où des agents modifient le code : il faut une branche de travail.
+const WORKING = ['executing', 'checking', 'reviewing'];
+const DEFAULT_MAX_ATTEMPTS = 2;
+
+const autonomousPlan = (state) => state.autonomy === 'autonomous'
+  && state.gates.plan.status === 'passed' && state.gates.plan.by === 'orchestrator';
 
 const isString = (v) => typeof v === 'string' && v.trim() !== '';
 const isArray = Array.isArray;
@@ -76,6 +85,14 @@ function checkTasks(state, errors) {
     const checks = task.validation && task.validation.checks;
     if (task.status === 'done' && !['passed', 'n/a'].includes(checks)) {
       errors.push(`${where} : « done » exige validation.checks à passed ou n/a (actuel : ${checks})`);
+    }
+    const review = task.validation && task.validation.review;
+    if (task.status === 'done' && review !== 'approve') {
+      errors.push(`${where} : « done » exige validation.review à approve (actuel : ${review})`);
+    }
+    const max = (state.limits && state.limits.maxAttempts) ?? DEFAULT_MAX_ATTEMPTS;
+    if (task.attempts > max && !['blocked', 'failed'].includes(task.status)) {
+      errors.push(`${where} : ${task.attempts} tentatives > maxAttempts (${max}) — la tâche doit être blocked ou failed`);
     }
   }
 
@@ -132,7 +149,7 @@ function checkGates(state, errors) {
     if (CLEARED.includes(gate.status) && !isString(gate.by)) {
       errors.push(`gates.${name} : « ${gate.status} » exige « by » (qui a validé)`);
     } else if ((gate.status === 'waived' || (gate.status === 'passed' && USER_GATES.includes(name)))
-        && gate.by !== 'user') {
+        && gate.by !== 'user' && !(name === 'plan' && autonomousPlan(state))) {
       errors.push(`gates.${name} : « ${gate.status} » ne peut être décidé que par l'utilisateur (by: "user"), pas « ${gate.by} »`);
     }
     if (gate.status === 'waived' && !isString(gate.notes)) {
@@ -170,7 +187,23 @@ function checkRules(state, errors, team) {
       }
     }
   }
+  if (autonomousPlan(state)) {
+    if (state.track === 'full') errors.push('gates.plan validée par l\'orchestrateur : interdit en piste full');
+    for (const task of tasks.filter((t) => t.requiresHuman)) {
+      errors.push(`gates.plan validée par l'orchestrateur malgré une tâche requiresHuman (${task.id}) : l'utilisateur doit valider`);
+    }
+  }
+  if (WORKING.includes(state.status)) {
+    if (!isString(state.branch)) errors.push(`status « ${state.status} » exige « branch » (branche de travail du run)`);
+    else if (state.branch === state.baseBranch) {
+      errors.push(`status « ${state.status} » : branch « ${state.branch} » est la branche de base — travaille sur une branche dédiée`);
+    }
+  }
+
   if (gate('checks') === 'passed') {
+    if (state.gates.checks.by !== 'run-checks') {
+      errors.push(`gates.checks « passed » exige by « run-checks » (posé par scripts/run-checks.mjs), pas « ${state.gates.checks.by} »`);
+    }
     if (!checks.length) {
       errors.push('gates.checks « passed » sans aucun contrôle dans le run (sinon : « waived » par l\'utilisateur, justifié)');
     }
@@ -181,6 +214,12 @@ function checkRules(state, errors, team) {
     }
   }
 
+  if (gate('review') === 'passed' && state.track !== 'quick') {
+    const pending = tasks.filter((t) => t.status !== 'done');
+    if (pending.length) {
+      errors.push(`gates.review « passed » exige toutes les tâches à done (${pending.map((t) => `${t.id} : ${t.status}`).join(', ')})`);
+    }
+  }
   if (gate('delivery') === 'passed') requireCleared(['checks', 'review'], 'gates.delivery « passed »');
   if (state.status === 'awaiting_delivery_approval') requireCleared(['checks', 'review'], 'status « awaiting_delivery_approval »');
   if (state.status === 'done') {
@@ -206,6 +245,7 @@ export function checkState(state, team = null) {
   if (!isString(state.id)) errors.push('id : obligatoire');
   oneOf(errors, 'track', state.track, TRACKS);
   oneOf(errors, 'status', state.status, RUN_STATUSES);
+  if (state.autonomy !== undefined) oneOf(errors, 'autonomy', state.autonomy, AUTONOMY);
   if (!isArray(state.log)) errors.push('log : doit être une liste');
   checkTasks(state, errors);
   checkChecks(state, errors);

@@ -43,3 +43,21 @@ portant le même nom serait signalé en conflit à l'installation.
 - Règles qui doivent être garanties (portes, statuts) : `scripts/check-state.mjs`, avec
   un test dans `tests/check-state.test.mjs` vu échouer avant correction.
 - Règles communes à tous les agents : `template/.claude/skills/team-rules/SKILL.md`.
+
+## Ajouter un garde-fou (hook)
+
+Seulement pour une règle qui doit tenir **à chaque fois** (question 1 de
+`which-surface`). Sinon c'est une consigne dans `team-rules`.
+
+1. Script Node dans `template/.claude/hooks/team/` (jamais bash ni Python), qui lit
+   son entrée en JSON sur stdin avec `readPayload()` de `lib.mjs`. Claude Code ne
+   passe rien en arguments ni en variables d'environnement propres à l'outil.
+2. Décision PreToolUse : `emitDecision({ decision: 'deny' | 'ask', reason })`. Entrée
+   illisible → `failClosed()` (code 2) : un garde qui laisse passer dans le doute est
+   pire que pas de garde. PostToolUse : code 2 et message sur stderr pour renvoyer une
+   erreur au modèle.
+3. Déclare-le dans `template/.claude/settings.json`, avec une commande de la forme
+   `node "$CLAUDE_PROJECT_DIR/.claude/hooks/team/<script>.mjs"` : c'est ce chemin qui
+   permet à `install.mjs` de reconnaître les hooks de l'équipe lors d'une mise à jour.
+4. Test dans `tests/hooks.test.mjs` qui lance le script avec le vrai payload, **vu
+   échouer** contre le défaut qu'il attrape.

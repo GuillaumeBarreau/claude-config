@@ -1,8 +1,8 @@
 {
   "name": "claude-config",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Équipe d'agents Claude Code (orchestrateur, planner, code-reviewer) installable dans n'importe quel projet",
+  "description": "Équipe d'agents Claude Code (orchestrateur, planner, implementer, code-reviewer) et garde-fous, installable dans n'importe quel projet",
   "type": "module",
   "engines": {
     "node": ">=20"

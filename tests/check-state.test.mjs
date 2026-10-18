@@ -49,7 +49,7 @@ test('portes plan et livraison, et dérogations : réservées à l\'utilisateur'
 test('porte 2 : impossible de la valider sans aucun contrôle', () => {
   const state = example();
   state.checks = [];
-  state.gates.checks = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  state.gates.checks = { status: 'passed', by: 'run-checks', at: null, notes: '' };
   assert.match(errorsOf(state), /gates\.checks « passed » sans aucun contrôle/);
 });
 
@@ -81,12 +81,13 @@ test('done (hors quick) exige toutes les tâches terminées', () => {
   state.checks[0].status = 'passed';
   state.status = 'done';
   state.gates.plan = { status: 'passed', by: 'user', at: null, notes: '' };
-  state.gates.checks = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  state.gates.checks = { status: 'passed', by: 'run-checks', at: null, notes: '' };
   state.gates.review = { status: 'passed', by: 'code-reviewer', at: null, notes: '' };
   assert.match(errorsOf(state), /« done » : la tâche T1 est « ready »/);
 
   state.tasks[0].status = 'done';
   state.tasks[0].validation.checks = 'passed';
+  state.tasks[0].validation.review = 'approve';
   assert.deepEqual(checkState(state), []);
 });
 
@@ -102,6 +103,7 @@ test('porte 1 : la piste quick n\'a pas de plan à valider', () => {
   const state = example();
   state.track = 'quick';
   state.status = 'checking';
+  state.branch = 'team/2026-10-18-exemple';
   assert.deepEqual(checkState(state), []);
 });
 
@@ -116,7 +118,7 @@ test('une porte validée doit dire par qui ; une dérogation doit être justifi�
 
 test('porte 2 : impossible de la valider avec un contrôle obligatoire non exécuté', () => {
   const state = example();
-  state.gates.checks = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  state.gates.checks = { status: 'passed', by: 'run-checks', at: null, notes: '' };
   assert.match(errorsOf(state), /contrôle obligatoire « tests » est not_run/);
 
   state.checks[0].status = 'passed';
@@ -174,4 +176,80 @@ test('blocked exige une raison ; awaiting_input exige une question', () => {
 test('ligne de commande : 0 sur le modèle, 1 sur un fichier invalide', () => {
   assert.match(execFileSync(process.execPath, [SCRIPT, EXAMPLE], { encoding: 'utf8' }), /OK/);
   assert.throws(() => execFileSync(process.execPath, [SCRIPT, SCRIPT], { stdio: 'pipe' }), (err) => err.status === 1);
+});
+
+// --- Exécution et autonomie ---
+
+const approvedPlan = (state) => {
+  state.gates.plan = { status: 'passed', by: 'user', at: null, notes: '' };
+  state.tasks[0].status = 'ready';
+  return state;
+};
+
+test('autonomie : valeur hors liste refusée', () => {
+  const state = example();
+  state.autonomy = 'total';
+  assert.match(errorsOf(state), /autonomy : « total »/);
+});
+
+test('porte 1 par l\'orchestrateur : seulement en autonomie, hors piste full, sans tâche requiresHuman', () => {
+  const state = example();
+  state.gates.plan = { status: 'passed', by: 'orchestrator', at: null, notes: 'autonomie' };
+  assert.match(errorsOf(state), /gates\.plan : « passed » ne peut être décidé que par l'utilisateur/);
+
+  state.autonomy = 'autonomous';
+  assert.deepEqual(checkState(state), []);
+
+  state.tasks[0].requiresHuman = true;
+  assert.match(errorsOf(state), /tâche requiresHuman \(T1\)/);
+
+  state.tasks[0].requiresHuman = false;
+  state.track = 'full';
+  assert.match(errorsOf(state), /piste full/);
+
+  // La livraison reste humaine, même en autonomie.
+  state.track = 'standard';
+  state.gates.delivery = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  assert.match(errorsOf(state), /gates\.delivery : « passed » ne peut être décidé que par l'utilisateur/);
+});
+
+test('porte 2 : « passed » seulement posé par run-checks', () => {
+  const state = example();
+  state.checks[0].status = 'passed';
+  state.gates.checks = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  assert.match(errorsOf(state), /gates\.checks « passed » exige by « run-checks »/);
+});
+
+test('tâche done : exige aussi une relecture approuvée', () => {
+  const state = example();
+  state.tasks[0].status = 'done';
+  state.tasks[0].validation = { checks: 'passed', review: 'changes_requested', evidence: [] };
+  assert.match(errorsOf(state), /« done » exige validation\.review à approve/);
+  state.tasks[0].validation.review = 'approve';
+  assert.deepEqual(checkState(state), []);
+});
+
+test('porte 3 (hors quick) : validée seulement quand toutes les tâches sont done', () => {
+  const state = example();
+  state.gates.review = { status: 'passed', by: 'orchestrator', at: null, notes: '' };
+  assert.match(errorsOf(state), /gates\.review « passed » exige toutes les tâches à done \(T1 : draft\)/);
+});
+
+test('tentatives : au-delà de limits.maxAttempts, la tâche doit être bloquée ou en échec', () => {
+  const state = example();
+  state.tasks[0].status = 'in_progress';
+  state.tasks[0].attempts = 3;
+  assert.match(errorsOf(state), /T1.*3 tentatives > maxAttempts \(2\)/);
+  state.tasks[0].status = 'failed';
+  assert.deepEqual(checkState(state), []);
+});
+
+test('exécution : exige une branche de travail distincte de la branche de base', () => {
+  const state = approvedPlan(example());
+  state.status = 'executing';
+  assert.match(errorsOf(state), /« executing » exige « branch »/);
+  state.branch = 'main';
+  assert.match(errorsOf(state), /branch « main » est la branche de base/);
+  state.branch = 'team/2026-10-18-exemple';
+  assert.deepEqual(checkState(state), []);
 });

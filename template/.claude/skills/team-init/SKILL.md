@@ -39,6 +39,14 @@ Présente un tableau : nom, commande, obligatoire, source (fichier où tu l'as t
 Ajoute la branche de base et la convention de commit. Propose d'exécuter chaque
 contrôle une fois pour vérifier qu'il fonctionne, et rapporte les résultats réels.
 
+Propose aussi les conventions de PR (`pullRequest`) : `titlePattern` déduit de la
+convention de commit (par exemple `^(feat|fix|docs|refactor|test|chore)((.+))?: `
+pour Conventional Commits), PR en brouillon (`draft`), `maxChangedLines`, `labels`.
+
+Demande aussi le niveau d'autonomie (`autonomy`) : `supervised` (défaut, l'utilisateur
+valide chaque plan) ou `autonomous` (l'orchestrateur valide seul les plans sans
+tâche sensible ; la livraison reste toujours humaine).
+
 ## 4. Enregistrer
 
 Après un accord explicite, mets à jour `.claude/team.json` :
@@ -48,6 +56,7 @@ Après un accord explicite, mets à jour `.claude/team.json` :
   "initialized": true,
   "baseBranch": "main",
   "commitConvention": "Conventional Commits (feat:, fix:…)",
+  "autonomy": "supervised",
   "checks": [
     { "name": "lint", "command": "ruff check .", "required": true },
     { "name": "tests", "command": "pytest", "required": true }

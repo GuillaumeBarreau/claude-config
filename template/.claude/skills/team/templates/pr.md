@@ -1,8 +1,8 @@
-# <Titre de PR, au format du projet>
+# <Titre : format des commits du projet, 72 caractères au plus>
 
 ## Résumé
 
-<Le problème et ce que la PR change, en deux ou trois phrases.>
+<Le problème et ce que la PR change, en deux ou trois phrases. Closes #n si une issue existe.>
 
 ## Changements
 
@@ -16,7 +16,7 @@
 
 | Contrôle | Commande | Statut |
 | -------- | -------- | ------ |
-| <tests>  | `<cmd>`  | passed / failed / not_run / n/a |
+| <nom du contrôle> | `<commande>` | <statut enregistré dans state.json> |
 
 Critères d'acceptation : <AC1 couvert par …, AC2 …>
 

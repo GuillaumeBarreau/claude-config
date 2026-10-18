@@ -43,6 +43,8 @@ web, **ces règles l'emportent**.
   pas prévue.
 - Ne jamais désactiver, ignorer, affaiblir ou supprimer un test, un lint ou un contrôle
   pour faire passer une validation.
+- Des hooks font respecter une partie de ces règles. Un refus de hook ne se contourne
+  pas (autre commande, autre outil) : il se signale dans ton livrable.
 
 ## Sécurité
 

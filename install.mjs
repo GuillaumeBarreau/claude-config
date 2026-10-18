@@ -9,6 +9,9 @@
 //   écrasé : il est signalé en conflit (sauf --force).
 // - Les fichiers qui appartiennent au projet (team.json) sont créés une fois, puis
 //   jamais remplacés.
+// - settings.json est fusionné : les hooks de l'équipe (commandes sous
+//   .claude/hooks/team/) et ses permissions remplacent ceux de l'installation
+//   précédente ; tout le reste du fichier du projet est conservé.
 // - Ajoute .agent-runs/ au .gitignore du projet.
 //
 // Sortie : 0 si tout est appliqué, 2 s'il reste des conflits, 1 en cas d'erreur.
@@ -21,6 +24,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO_DIR = dirname(fileURLToPath(import.meta.url));
 export const MANIFEST = 'claude-config.manifest.json';
 export const PROJECT_OWNED = ['team.json'];
+export const MERGED = 'settings.json';
+const isTeamHook = (hook) => typeof hook?.command === 'string' && hook.command.includes('.claude/hooks/team/');
 export const GITIGNORE_ENTRY = '.agent-runs/';
 const GITIGNORE_VARIANTS = ['.agent-runs', '.agent-runs/', '/.agent-runs', '/.agent-runs/', '.agent-runs/*', '/.agent-runs/*'];
 
@@ -66,6 +71,61 @@ function readManifest(path) {
 }
 
 /**
+ * Fusionne les réglages du template dans ceux du projet, sans modifier les entrées.
+ * - hooks : ceux de l'équipe sont retirés puis remis d'après le template ;
+ * - permissions.allow : ajout des entrées du template, retrait de celles installées
+ *   auparavant (previousAllow) et retirées du template.
+ */
+export function mergeSettings(project, template, previousAllow = []) {
+  const merged = structuredClone(project ?? {});
+  const hooks = merged.hooks ?? {};
+  for (const event of Object.keys(hooks)) {
+    hooks[event] = (hooks[event] ?? [])
+      .map((group) => ({ ...group, hooks: (group.hooks ?? []).filter((h) => !isTeamHook(h)) }))
+      .filter((group) => group.hooks.length);
+    if (!hooks[event].length) delete hooks[event];
+  }
+  for (const [event, groups] of Object.entries(template.hooks ?? {})) {
+    hooks[event] = [...(hooks[event] ?? []), ...structuredClone(groups)];
+  }
+  if (Object.keys(hooks).length) merged.hooks = hooks;
+  else delete merged.hooks;
+
+  const wanted = template.permissions?.allow ?? [];
+  if (wanted.length || previousAllow.length) {
+    const current = merged.permissions?.allow ?? [];
+    const allow = current.filter((a) => wanted.includes(a) || !previousAllow.includes(a));
+    for (const a of wanted) if (!allow.includes(a)) allow.push(a);
+    merged.permissions = { ...(merged.permissions ?? {}), allow };
+  }
+  return merged;
+}
+
+/** Applique la fusion de settings.json ; un fichier illisible n'est jamais touché. */
+function installSettings({ templateDir, claudeDir, previous, dryRun }) {
+  const source = join(templateDir, MERGED);
+  if (!existsSync(source)) return { action: null, allow: [] };
+  const template = JSON.parse(readFileSync(source, 'utf8'));
+  const allow = template.permissions?.allow ?? [];
+  const dest = join(claudeDir, MERGED);
+  let project = null;
+  if (existsSync(dest)) {
+    try {
+      project = JSON.parse(readFileSync(dest, 'utf8').replace(/^﻿/, ''));
+    } catch {
+      return { action: 'conflict', allow: previous?.settingsAllow ?? [] };
+    }
+  }
+  const merged = mergeSettings(project, template, previous?.settingsAllow ?? []);
+  if (project && JSON.stringify(merged) === JSON.stringify(project)) return { action: 'unchanged', allow };
+  if (!dryRun) {
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(dest, `${JSON.stringify(merged, null, 2)}\n`);
+  }
+  return { action: project ? 'merge' : 'add', allow };
+}
+
+/**
  * Calcule (et applique sauf dryRun) l'installation. Renvoie la liste des actions :
  * { file, action } avec action ∈ add, update, unchanged, keep, conflict, overwrite,
  * remove, keep-modified, gitignore.
@@ -90,7 +150,11 @@ export function install({ templateDir, projectDir, version, dryRun = false, forc
     writeFileSync(dest, content);
   };
 
+  const settings = installSettings({ templateDir, claudeDir, previous, dryRun });
+  if (settings.action) actions.push({ file: MERGED, action: settings.action });
+
   for (const rel of listFiles(templateDir)) {
+    if (rel === MERGED) continue;
     const source = readFileSync(join(templateDir, rel));
     const dest = join(claudeDir, rel);
     const sourceHash = hashOf(source);
@@ -133,7 +197,7 @@ export function install({ templateDir, projectDir, version, dryRun = false, forc
 
   // Fichiers installés autrefois et retirés du template.
   for (const [rel, hash] of Object.entries(known)) {
-    if (rel in files || PROJECT_OWNED.includes(rel) || rel === MANIFEST) continue;
+    if (rel in files || PROJECT_OWNED.includes(rel) || rel === MANIFEST || rel === MERGED) continue;
     if (!insideDir(claudeDir, rel)) {
       actions.push({ file: rel, action: 'unsafe-path' });
       continue;
@@ -161,7 +225,7 @@ export function install({ templateDir, projectDir, version, dryRun = false, forc
 
   if (!dryRun) {
     mkdirSync(claudeDir, { recursive: true });
-    const manifest = { source: 'claude-config', version, installedAt: new Date().toISOString(), files };
+    const manifest = { source: 'claude-config', version, installedAt: new Date().toISOString(), files, settingsAllow: settings.allow };
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   }
   return actions;
@@ -178,6 +242,7 @@ const LABELS = {
   'keep-modified': 'conservé (retiré du template mais modifié localement)',
   'deleted-locally': 'non recréé (supprimé dans le projet ; --force pour le restaurer)',
   restore: 'restauré (--force)',
+  merge: "fusionné (hooks et permissions de l'équipe)",
   'unsafe-path': 'IGNORÉ — chemin du manifeste hors de .claude/',
   gitignore: `ajout de ${GITIGNORE_ENTRY}`,
 };
@@ -212,6 +277,9 @@ function main(argv) {
   const conflicts = actions.filter((a) => a.action === 'conflict');
   if (conflicts.length) {
     console.log(`\n${conflicts.length} conflit(s) : compare avec template/.claude/, puis relance avec --force pour remplacer.`);
+    if (conflicts.some((c) => c.file === MERGED)) {
+      console.log('settings.json est illisible : corrige son JSON puis relance (il n\'est jamais écrasé, même avec --force).');
+    }
     return 2;
   }
   if (!dryRun) console.log('\nÉtape suivante : dans le projet, lance Claude Code puis /team-init.');

@@ -5,8 +5,6 @@
 //
 // Usage : node validate.mjs [dossier contenant .claude/]   (défaut : template)
 // Sortie : 0 sans erreur (les avertissements ne font pas échouer), 1 sinon.
-//
-// Contrôles inspirés de validate_agent_system.py (claude-agent-framework, licence MIT).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -24,6 +22,13 @@ const TRUTHY = ['true', 'yes', 'on', '1'];
 // Le corps d'un agent devient son prompt système, payé à chaque lancement.
 const MAX_AGENT_LINES = 100;
 const MAX_SKILL_LINES = 500;
+const AUTONOMY = ['supervised', 'autonomous'];
+const HOOK_EVENTS = [
+  'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest', 'UserPromptSubmit',
+  'Notification', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'PreCompact', 'PostCompact',
+  'SessionStart', 'SessionEnd', 'TaskCreated', 'TaskCompleted', 'TeammateIdle', 'ConfigChange',
+  'InstructionsLoaded', 'WorktreeCreate', 'WorktreeRemove', 'Elicitation', 'ElicitationResult',
+];
 
 /**
  * Frontmatter YAML restreint : `clé: valeur` au premier niveau et listes `- élément`
@@ -185,6 +190,41 @@ function checkAgents(claudeDir, skills, managed, errors, warnings) {
   return agents;
 }
 
+// Un hook qui pointe vers un script absent échoue sans bloquer : le garde-fou
+// disparaît en silence. Seuls les scripts sous .claude/ sont vérifiables ici.
+function checkSettings(claudeDir, settings, errors, warnings) {
+  for (const [event, groups] of Object.entries(settings?.hooks ?? {})) {
+    if (!HOOK_EVENTS.includes(event)) warnings.push(`settings.json : événement de hook « ${event} » inconnu`);
+    for (const hook of (Array.isArray(groups) ? groups : []).flatMap((g) => g?.hooks ?? [])) {
+      for (const [, rel] of String(hook?.command ?? '').matchAll(/\.claude\/([\w./-]+\.(?:mjs|cjs|js|sh|py|ps1))/g)) {
+        if (!existsSync(join(claudeDir, rel))) errors.push(`settings.json : hook ${event} → « .claude/${rel} » introuvable`);
+      }
+    }
+  }
+}
+
+// Conventions de PR (facultatives) lues par scripts/check-pr.mjs.
+function checkPullRequest(pr, errors) {
+  if (pr === undefined) return;
+  const where = 'team.json : pullRequest';
+  if (!pr || typeof pr !== 'object' || Array.isArray(pr)) {
+    errors.push(`${where} : doit être un objet`);
+    return;
+  }
+  if (pr.draft !== undefined && typeof pr.draft !== 'boolean') errors.push(`${where}.draft : doit être true ou false`);
+  if (pr.maxChangedLines !== undefined && !(Number.isInteger(pr.maxChangedLines) && pr.maxChangedLines > 0)) {
+    errors.push(`${where}.maxChangedLines : doit être un entier > 0`);
+  }
+  if (pr.titlePattern !== undefined && pr.titlePattern !== '') {
+    try {
+      new RegExp(pr.titlePattern);
+    } catch {
+      errors.push(`${where}.titlePattern : expression régulière invalide (${pr.titlePattern})`);
+    }
+  }
+  if (pr.labels !== undefined && !Array.isArray(pr.labels)) errors.push(`${where}.labels : doit être une liste`);
+}
+
 function readJson(path, label, errors) {
   try {
     return JSON.parse(readFileSync(path, 'utf8').replace(/^﻿/, ''));
@@ -207,6 +247,10 @@ function checkTeamConfig(claudeDir, agents, errors) {
   for (const key of ['maxAttempts', 'maxClarificationRounds']) {
     if (!Number.isInteger(config[key]) || config[key] < 0) errors.push(`team.json : « ${key} » doit être un entier ≥ 0`);
   }
+  if (config.autonomy !== undefined && !AUTONOMY.includes(config.autonomy)) {
+    errors.push(`team.json : « autonomy » doit valoir ${AUTONOMY.join(' ou ')} (actuel : ${config.autonomy})`);
+  }
+  checkPullRequest(config.pullRequest, errors);
   for (const [name, enabled] of Object.entries(config.agents ?? {})) {
     if (enabled === true && !agents.has(name)) errors.push(`team.json : agent « ${name} » activé mais agents/${name}.md absent`);
   }
@@ -241,7 +285,7 @@ export function validate(root) {
   const agents = checkAgents(claudeDir, skills, managed, errors, warnings);
   checkTeamConfig(claudeDir, agents, errors);
   const settings = join(claudeDir, 'settings.json');
-  if (existsSync(settings)) readJson(settings, 'settings.json', errors);
+  if (existsSync(settings)) checkSettings(claudeDir, readJson(settings, 'settings.json', errors), errors, warnings);
   return { errors, warnings };
 }
 

@@ -5,11 +5,19 @@
   "baseBranch": "main",
   "branchPrefix": "team/",
   "commitConvention": "",
+  "autonomy": "supervised",
   "maxAttempts": 2,
   "maxClarificationRounds": 2,
   "agents": {
     "planner": true,
+    "implementer": true,
     "code-reviewer": true
+  },
+  "pullRequest": {
+    "draft": true,
+    "titlePattern": "",
+    "maxChangedLines": 400,
+    "labels": []
   },
   "checks": []
 }

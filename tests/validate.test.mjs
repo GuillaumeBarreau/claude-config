@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -91,11 +91,11 @@ test('team.json : agent activé sans fichier, contrôle incomplet, JSON invalide
   const root = templateCopy();
   const path = join(root, '.claude/team.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  config.agents.implementer = true;
+  config.agents["release-manager"] = true;
   config.checks = [{ name: 'tests', command: 'pytest' }];
   writeFileSync(path, JSON.stringify(config));
   const errors = errorsOf(root);
-  assert.match(errors, /agent « implementer » activé mais agents\/implementer\.md absent/);
+  assert.match(errors, /agent « release-manager » activé mais agents\/release-manager\.md absent/);
   assert.match(errors, /checks\[0\] doit avoir name, command et required/);
 
   writeFileSync(path, '{ invalide');
@@ -151,4 +151,38 @@ test('corps d\'agent trop long : avertissement seulement', () => {
   const { errors, warnings } = validate(root);
   assert.deepEqual(errors, []);
   assert.match(warnings.join('\n'), /planner\.md : corps de \d+ lignes/);
+});
+
+test('settings.json : un hook dont le script n\'existe pas est une erreur', () => {
+  const root = templateCopy();
+  rmSync(join(root, '.claude/hooks/team/guard-bash.mjs'));
+  assert.match(errorsOf(root), /settings\.json : hook PreToolUse → « \.claude\/hooks\/team\/guard-bash\.mjs » introuvable/);
+});
+
+test('settings.json : événement de hook inconnu signalé', () => {
+  const root = templateCopy();
+  const path = join(root, '.claude/settings.json');
+  const settings = JSON.parse(readFileSync(path, 'utf8'));
+  settings.hooks.BeforeTool = settings.hooks.PreToolUse;
+  writeFileSync(path, JSON.stringify(settings));
+  assert.match(validate(root).warnings.join('\n'), /événement de hook « BeforeTool » inconnu/);
+});
+
+test('team.json : autonomy hors liste', () => {
+  const root = templateCopy();
+  const path = join(root, '.claude/team.json');
+  writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), autonomy: 'yolo' }));
+  assert.match(errorsOf(root), /team\.json : « autonomy » doit valoir supervised ou autonomous/);
+});
+
+test('team.json : pullRequest mal typé ou titlePattern invalide', () => {
+  const root = templateCopy();
+  const path = join(root, '.claude/team.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  writeFileSync(path, JSON.stringify({ ...config, pullRequest: { draft: 'oui', maxChangedLines: -1, titlePattern: '(feat', labels: 'bug' } }));
+  const errors = errorsOf(root);
+  assert.match(errors, /pullRequest\.draft : doit être true ou false/);
+  assert.match(errors, /pullRequest\.maxChangedLines : doit être un entier > 0/);
+  assert.match(errors, /pullRequest\.titlePattern : expression régulière invalide/);
+  assert.match(errors, /pullRequest\.labels : doit être une liste/);
 });

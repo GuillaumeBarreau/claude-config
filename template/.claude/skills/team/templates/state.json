@@ -3,6 +3,8 @@
   "title": "Exemple de run",
   "track": "standard",
   "status": "awaiting_plan_approval",
+  "autonomy": "supervised",
+  "sessionId": null,
   "branch": null,
   "baseBranch": "main",
   "createdAt": "2026-10-18T10:00:00Z",
@@ -16,6 +18,7 @@
   "openQuestions": [],
   "answers": [],
   "attempts": { "clarification": 0 },
+  "limits": { "maxAttempts": 2, "maxClarificationRounds": 2 },
   "tasks": [
     {
       "id": "T1",
