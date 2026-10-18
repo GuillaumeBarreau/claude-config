@@ -106,7 +106,13 @@ export function evaluateCommand(command, ctx) {
   if (tokensOf(command.replace(/[<>|;&()]/g, ' ')).some((t) => isSecretPath(t))) {
     results.push(deny('lecture d\'un fichier de secrets (.env, clé privée) interdite'));
   }
-  for (const segment of segments(command)) results.push(checkSegment(segment, ctx));
+  const parts = segments(command);
+  // Le message d'un commit peut s'étaler sur plusieurs lignes (heredoc) : on regarde
+  // la commande entière dès qu'elle contient un git commit.
+  if (/co-authored-by:/i.test(command) && parts.some((s) => /^git\b.*\bcommit\b/.test(s))) {
+    results.push(deny('pas de mention Co-Authored-By dans les messages de commit : retire la ligne'));
+  }
+  for (const segment of parts) results.push(checkSegment(segment, ctx));
   return strongest(results);
 }
 

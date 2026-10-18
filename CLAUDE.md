@@ -28,6 +28,9 @@ test qu'on a **vu échouer** contre le défaut qu'il attrape.
 
 Mettre à jour `CHANGELOG.md` et la version de `package.json` quand le template change.
 
+Messages de commit et descriptions de PR : jamais de ligne `Co-Authored-By:` ni de
+mention d'attribution (« Generated with Claude Code »…).
+
 ## Langue
 
 Documentation, prompts et messages en français. Identifiants et code en anglais.

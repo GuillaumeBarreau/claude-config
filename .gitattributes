@@ -1,0 +1,3 @@
+# LF partout, Windows compris : les scripts, les tests et les empreintes du manifeste
+# supposent des fins de ligne LF.
+* text=auto eol=lf

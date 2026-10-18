@@ -12,6 +12,8 @@ Git et `gh`).
 - Un commit par tâche, au format de `commitConvention`, avec l'id de la tâche :
   `feat: export CSV des sessions (T1)`. Pas de commit « wip » ni « fix review » : une
   correction demandée par la relecture est intégrée avant le commit de la tâche.
+- Pas de ligne `Co-Authored-By:` ni de mention « généré par » dans les commits et la
+  description de PR.
 - Après le push, pas de réécriture d'historique (`--force`, `rebase`, `--amend`) sans
   accord : un relecteur humain a peut-être déjà commencé.
 

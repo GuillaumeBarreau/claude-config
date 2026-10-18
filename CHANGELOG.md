@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 — 2026-10-18
+
+Ajouté :
+- Règle : aucune ligne `Co-Authored-By:` ni mention d'attribution dans les commits et
+  les descriptions de PR (`team-rules`, conventions de PR, `CLAUDE.md`).
+- `guard-bash` refuse un `git commit` dont le message contient `Co-Authored-By:`.
+
+Corrigé :
+- `.gitattributes` impose LF : sous Windows, l'extraction en CRLF faisait échouer
+  5 tests (CI windows-latest en échec depuis la 0.2.0).
+
 ## 0.2.0 — 2026-10-18 — Incréments 2 et 3 : exécution autonome et garde-fous
 
 Ajouté :

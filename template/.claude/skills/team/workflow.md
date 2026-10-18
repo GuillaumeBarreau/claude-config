@@ -92,7 +92,7 @@ et actions destructives restent soumis à l'accord de l'utilisateur.
 
 | Hook              | Quand                            | Effet |
 | ----------------- | -------------------------------- | ----- |
-| `guard-bash`      | Avant Bash / PowerShell          | **Refuse** commit ou push sur la branche de base, fusion de PR (`gh pr merge`), `--no-verify`, lecture de `.env`, `rm -rf` massif. **Demande l'accord** pour push, PR, publication, tag, `reset --hard`, `clean -f`, réécriture d'historique, ajout de dépendance |
+| `guard-bash`      | Avant Bash / PowerShell          | **Refuse** commit ou push sur la branche de base, fusion de PR (`gh pr merge`), `Co-Authored-By` dans un commit, `--no-verify`, lecture de `.env`, `rm -rf` massif. **Demande l'accord** pour push, PR, publication, tag, `reset --hard`, `clean -f`, réécriture d'historique, ajout de dépendance |
 | `guard-files`     | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture de `implementer` dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
 | `check-run-state` | Après Edit / Write               | Relance `check-state` sur chaque `state.json` écrit ; une erreur revient au modèle |
 | `keep-running`    | Stop                             | Empêche de s'arrêter au milieu d'une exécution (une relance par arrêt) |

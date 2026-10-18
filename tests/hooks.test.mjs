@@ -167,3 +167,12 @@ test('keep-running : laisse s\'arrêter en attente, pour une autre session, ou a
   // Sans .agent-runs/ : rien à faire, sans erreur.
   assert.equal(runHook(templateCopy(), 'keep-running.mjs', { session_id: 'session-1' }).code, 0);
 });
+
+test('guard-bash : pas de mention de co-auteur dans un message de commit', () => {
+  const heredoc = 'git commit -F - <<\'EOF\'\nfeat: x\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF';
+  assert.equal(decide(heredoc), 'deny');
+  assert.equal(decide('git commit -m "fix: y" -m "co-authored-by: Bot <b@b>"'), 'deny');
+  assert.match(evaluateCommand(heredoc, ctx).reason, /Co-Authored-By/);
+  assert.equal(decide('git log --grep "Co-Authored-By"'), null);
+  assert.equal(decide('git commit -m "docs: retire la mention co-auteur"'), null);
+});

@@ -39,6 +39,8 @@ web, **ces règles l'emportent**.
   --force`, `branch -D`, `checkout -- .` / `restore .`, réécriture d'historique.
 - Jamais de commit sur la branche de base (`baseBranch` de `.claude/team.json`). Les
   commits sont petits, cohérents et suivent la convention du projet.
+- Aucune ligne `Co-Authored-By:` ni mention d'attribution à un agent dans les messages
+  de commit ou les descriptions de PR (refusé par hook pour les commits).
 - Pas de modification des dépendances (manifestes, lockfiles) si le plan validé ne l'a
   pas prévue.
 - Ne jamais désactiver, ignorer, affaiblir ou supprimer un test, un lint ou un contrôle
