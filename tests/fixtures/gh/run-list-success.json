@@ -1,0 +1,26 @@
+[
+  {
+    "conclusion": "success",
+    "databaseId": 9001,
+    "headSha": "1111111111111111111111111111111111111111",
+    "status": "completed",
+    "url": "https://github.com/acme/app/actions/runs/9001",
+    "workflowName": "CI"
+  },
+  {
+    "conclusion": "skipped",
+    "databaseId": 9002,
+    "headSha": "1111111111111111111111111111111111111111",
+    "status": "completed",
+    "url": "https://github.com/acme/app/actions/runs/9002",
+    "workflowName": "Deploy preview"
+  },
+  {
+    "conclusion": "failure",
+    "databaseId": 8001,
+    "headSha": "0000000000000000000000000000000000000000",
+    "status": "completed",
+    "url": "https://github.com/acme/app/actions/runs/8001",
+    "workflowName": "CI"
+  }
+]

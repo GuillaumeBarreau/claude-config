@@ -1,0 +1,18 @@
+[
+  {
+    "conclusion": "failure",
+    "databaseId": 9101,
+    "headSha": "1111111111111111111111111111111111111111",
+    "status": "completed",
+    "url": "https://github.com/acme/app/actions/runs/9101",
+    "workflowName": "CI"
+  },
+  {
+    "conclusion": "success",
+    "databaseId": 9102,
+    "headSha": "1111111111111111111111111111111111111111",
+    "status": "completed",
+    "url": "https://github.com/acme/app/actions/runs/9102",
+    "workflowName": "Lint"
+  }
+]
