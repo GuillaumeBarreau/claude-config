@@ -29,13 +29,11 @@ Demande : `$ARGUMENTS`
 
 ## 1. Démarrer un run
 
-- Identifiant : `AAAA-MM-JJ-<slug-court>` (ajoute `-2`, `-3`… s'il existe déjà).
-- Crée `.agent-runs/<id>/request.md` (la demande telle quelle) et `state.json` d'après
-  [le modèle](templates/state.json) (`"schemaVersion": 2`) : vide `tasks` et `log`,
-  recopie dans `checks` chaque contrôle de `team.json` avec `"status": "not_run"`,
-  renseigne `autonomy`, `limits` et `baseBranch` depuis `team.json`, et
-  `"sessionId": "${CLAUDE_SESSION_ID}"`. Les champs `planCheck`, `scope`, `ci`, `pr`
-  restent à `null`.
+- Crée le run avec le script, jamais à la main (dates réelles, valeurs de
+  `team.json`, contrôles recopiés) — une commande seule, sans `cd` ni `&&` :
+  `node .claude/skills/team/scripts/new-run.mjs --slug <slug-court> --track <piste> --session ${CLAUDE_SESSION_ID} --title "<titre>"`
+  (ajoute `--issue <n>` pour une issue). Il affiche l'identifiant `<id>`.
+- Écris la demande telle quelle dans `.agent-runs/<id>/request.md` (outil Write).
 - Après **chaque** écriture de `state.json`, vérifie-le depuis la racine du projet :
   `node .claude/skills/team/scripts/check-state.mjs .agent-runs/<id>/state.json`.
   Une erreur se corrige sans contourner la règle. Un hook le relance aussi.

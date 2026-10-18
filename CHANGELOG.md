@@ -9,6 +9,10 @@ Ajouté :
   dans la session. Lecture seule côté GitHub. Enchaînement avec `/goal`.
 - `state.json` : champ facultatif `issue` (numéro de l'issue), vérifié par
   `check-state`.
+- `new-run.mjs` : création déterministe d'un run (identifiant unique, dates réelles,
+  session, valeurs de `team.json`). Corrige deux défauts vus au premier run réel du
+  banc (`quick-bug`, réussi) : date de création recopiée du modèle (durée faussée) et
+  commande composée de création refusée par les permissions.
 
 Pas fait (en attente d'une décision) :
 - Livraison automatique en brouillon (`pullRequest.autoDraft`) : push d'une branche

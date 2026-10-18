@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(node .claude/skills/team/scripts/new-run.mjs *)",
       "Bash(node .claude/skills/team/scripts/check-state.mjs *)",
       "Bash(node .claude/skills/team/scripts/run-checks.mjs *)",
       "Bash(node .claude/skills/team/scripts/check-pr.mjs *)",
