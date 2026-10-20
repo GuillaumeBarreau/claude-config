@@ -50,7 +50,9 @@ pourquoi, avec les ambiguïtés repérées. L'utilisateur peut changer de piste.
 Chaque délégation est **autonome** (l'agent ne voit pas cette conversation) : chemin
 du run, id de la tâche ou mode, et ce dont il a besoin. Le champ `description` de
 l'appel suit la forme `"<agent> <Tn|spec|plan|consult|split> #<k>"` (k = numéro de
-l'appel pour cette tâche) : c'est ce que lisent les mesures.
+l'appel pour cette tâche) : c'est ce que lisent les mesures. Appelle toujours les
+agents au premier plan (sans `run_in_background: true`), sauf pour lancer en parallèle
+des tâches indépendantes d'une même vague (`plan-waves.mjs`).
 
 Le livrable est le **bloc JSON final** décrit dans [deliverables.md](deliverables.md) :
 lis `status`, `questions`, `verdict` et `findings` dans ce bloc (ou dans

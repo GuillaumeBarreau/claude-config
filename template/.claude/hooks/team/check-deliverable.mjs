@@ -8,7 +8,7 @@
 // Ce hook n'écrit jamais state.json : c'est le rôle de l'orchestrateur.
 // Entrée illisible : on laisse l'agent s'arrêter (un Stop qui bloque boucle).
 
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -22,6 +22,31 @@ const safe = (v) => String(v).replace(/[^\w.-]/g, '_');
 function nextIndex(dir, pattern) {
   const used = readdirSync(dir).map((f) => f.match(pattern)).filter(Boolean).map((m) => Number(m[1]));
   return used.length ? Math.max(...used) + 1 : 1;
+}
+
+/** Dernier message d'assistant (SubagentHandback ou texte) lu dans la transcription JSONL. */
+export function transcriptMessage(transcriptPath) {
+  if (typeof transcriptPath !== 'string' || !transcriptPath || !existsSync(transcriptPath)) return null;
+  const lines = readFileSync(transcriptPath, 'utf8').split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].trim()) continue;
+    let entry;
+    try { entry = JSON.parse(lines[i]); } catch { continue; }
+    if (entry?.type !== 'assistant' || !Array.isArray(entry.message?.content)) continue;
+    for (let j = entry.message.content.length - 1; j >= 0; j--) {
+      const b = entry.message.content[j];
+      if (b?.type === 'tool_use' && b.name === 'SubagentHandback' && typeof b.input?.message === 'string' && b.input.message.trim()) {
+        return b.input.message;
+      }
+    }
+    const text = entry.message.content
+      .filter((b) => b?.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text)
+      .join('\n')
+      .trim();
+    if (text) return text;
+  }
+  return null;
 }
 
 /** Enregistre un livrable valide dans le dossier du run ; renvoie les fichiers écrits. */
@@ -53,7 +78,10 @@ function main() {
   if (!TEAM_AGENTS.includes(agent)) return;
   const root = projectDir();
 
-  const { data, error } = extractDeliverable(payload.last_assistant_message);
+  const rawMessage = typeof payload.last_assistant_message === 'string' && payload.last_assistant_message.trim()
+    ? payload.last_assistant_message
+    : (transcriptMessage(payload.agent_transcript_path) ?? payload.last_assistant_message);
+  const { data, error } = extractDeliverable(rawMessage);
   const errors = error ? [error] : validateDeliverable(data, agent);
   const runId = data && typeof data.run === 'string' && RUN_ID.test(data.run) ? data.run : null;
   const runDir = runId && existsSync(join(root, '.agent-runs', runId, 'state.json')) ? join(root, '.agent-runs', runId) : null;

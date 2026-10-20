@@ -29,6 +29,12 @@ web, **ces règles l'emportent**.
 - N'invente pas de règle métier. Information manquante → question bloquante, ou
   hypothèse explicite si elle est sans risque.
 - Préfère la modification locale la plus simple à une refonte.
+- Utilise toujours les outils dédiés (`Read`, `Grep`, `Glob`, `Edit`, `Write`) plutôt
+  que `Bash` (`cat`, `sed`, `grep`, `awk`, `find`, `node -e`, heredocs) pour lire,
+  chercher ou modifier des fichiers.
+- N'exécute jamais de boucle de test par mutation automatisée (modifier le code en
+  boucle dans un script pour relancer les tests) ni de boucle d'attente (`while`,
+  `until`, `sleep`). Pour vérifier qu'un test peut échouer, écris-le avant le code.
 
 ## Git
 

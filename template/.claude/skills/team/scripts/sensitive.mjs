@@ -71,7 +71,7 @@ function builtinCategory(path) {
   const base = segments.at(-1);
   const dirs = segments.slice(0, -1);
   if (isSecretPath(path) || dirs.includes('secrets') || base.startsWith('credentials')) return 'secrets';
-  if (dirs.includes('.claude')) return 'team-config';
+  if (dirs[0] === '.claude') return 'team-config';
   if (/(^|\/)\.github\/(workflows|actions)\//.test(lower) || dirs.includes('.circleci') || CI_FILES.has(base)) return 'ci';
   if (dirs.includes('migrations') || dirs.includes('migrate') || dirs.includes('alembic')
     || /(^|\/)prisma\/schema\.prisma$/.test(lower) || /(^|\/)db\/schema\.rb$/.test(lower)) return 'migrations';

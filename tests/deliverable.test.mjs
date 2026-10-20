@@ -182,6 +182,46 @@ test('check-deliverable : relecteur valide pour T2 → review-T2-1.json puis rev
   assert.ok(existsSync(join(dir, 'deliverables', '004-planner.json')));
 });
 
+test('check-deliverable : lit SubagentHandback ou le texte final dans agent_transcript_path si last_assistant_message est vide', () => {
+  const root = templateCopy();
+  const dir = runDir(root);
+  const transcript = join(root, 'subagent.jsonl');
+  const handbackLine = (msg) => JSON.stringify({
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'tool_use', name: 'SubagentHandback', input: { message: msg } }] },
+  });
+  const toolResultLine = JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', content: [{ type: 'text', text: 'ok' }] }] },
+  });
+
+  writeFile(transcript, [handbackLine(block(implementer())), toolResultLine].join('\n'));
+  const ok = runHook(root, 'check-deliverable.mjs', stop('implementer', '', { agent_transcript_path: transcript }));
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(ok.stdout.trim(), '');
+  assert.ok(existsSync(join(dir, 'deliverables', '001-implementer-T1.json')));
+
+  // Un livrable invalide dans SubagentHandback renvoie l'erreur de schéma réelle (pas « aucun bloc »).
+  writeFile(transcript, [handbackLine(block(implementer({ files: [] }))), toolResultLine].join('\n'));
+  const ko = runHook(root, 'check-deliverable.mjs', stop('implementer', '', { agent_transcript_path: transcript }));
+  assert.equal(ko.json?.decision, 'block');
+  assert.match(ko.json.reason, /files/);
+
+  // Repli sur le dernier bloc text d'assistant si SubagentHandback n'est pas utilisé.
+  const textLine = JSON.stringify({
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'text', text: block(planner()) }] },
+  });
+  const thinkingLine = JSON.stringify({
+    type: 'assistant',
+    message: { role: 'assistant', content: [{ type: 'thinking', thinking: '…' }] },
+  });
+  writeFile(transcript, [textLine, thinkingLine].join('\n'));
+  const okText = runHook(root, 'check-deliverable.mjs', stop('planner', undefined, { agent_transcript_path: transcript }));
+  assert.equal(okText.stdout.trim(), '');
+  assert.ok(existsSync(join(dir, 'deliverables', '002-planner.json')));
+});
+
 test('check-deliverable : run null ou introuvable → rien écrit ; agent hors équipe jamais bloqué ; entrée illisible → 0', () => {
   const root = templateCopy();
   runDir(root);

@@ -41,6 +41,9 @@ Recopié tel quel par l'orchestrateur dans `state.json` (`tasks`), puis vérifi�
 Valeurs possibles : `type` ∈ feature, bug, refactoring, test, documentation,
 infrastructure ; `priority` ∈ P0, P1, P2 ; `complexity` ∈ S, M, L.
 
+- Regroupe les changements liés (code, schéma, tests) en **1 à 3 tâches** cohérentes en
+  piste standard (4 ou 5 au maximum en piste full) : chaque tâche supplémentaire coûte
+  un cycle complet d'implémentation, de contrôles et de relecture.
 - `files` : fichiers **existants** que la tâche modifie ; `newFiles` : fichiers qu'elle
   crée. Tests compris. Chemins relatifs à la racine du projet, sans `..`, sans glob,
   sans `…` ni `<…>`.

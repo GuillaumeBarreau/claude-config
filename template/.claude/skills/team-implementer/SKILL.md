@@ -39,13 +39,13 @@ du run. Ton corps d'agent dit ton domaine ; cette procédure vaut pour tous.
   Un bug se corrige avec un test qui le reproduit.
 - Reste dans le périmètre de la tâche et des fichiers prévus (`files`, `newFiles`). Un
   fichier hors plan devenu nécessaire : fais-le si c'est indispensable et déclare-le
-  dans `deviations`.
+  dans `deviations` (`{ file, reason }`).
 - Pas de nouvelle dépendance, de migration ou de changement de CI si la tâche ne le
   prévoit pas : statut `needs_input` avec la raison.
-- Lance les contrôles de `checks` dans `.claude/team.json` pertinents pour ton
-  changement (tests ciblés, lint, types) et corrige jusqu'à ce qu'ils passent. Ce sont
-  tes preuves de travail ; la validation officielle est faite ensuite par
-  l'orchestrateur avec `run-checks`.
+- Pendant le développement, lance d'abord le fichier de test ciblé, puis une seule
+  passe finale des contrôles de `checks` dans `.claude/team.json` pertinents pour ton
+  changement. Ce sont tes preuves de travail ; la validation officielle est faite
+  ensuite par l'orchestrateur avec `run-checks`.
 - Jamais affaiblir, ignorer ou supprimer un test ou un contrôle pour le faire passer.
 
 ## Questions

@@ -51,7 +51,8 @@ test('sensitive : migrations, CI, authentification, secrets, configuration de l\
 
 test('sensitive : pas de faux positif sur des noms proches', () => {
   for (const path of ['src/author.ts', 'src/authentication-notes.md', 'docs/package-json.md', '.env.example',
-    'src/migration-guide.md', 'README.md', 'tests/test_auth_helpers.py', 'src/package.json.bak', 'src/permissions.ts']) {
+    'src/migration-guide.md', 'README.md', 'tests/test_auth_helpers.py', 'src/package.json.bak', 'src/permissions.ts',
+    'template/.claude/skills/team/SKILL.md', 'packages/x/.claude/settings.json']) {
     assert.equal(categoryOf(path), null, path);
   }
 });

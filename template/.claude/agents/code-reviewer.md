@@ -38,7 +38,9 @@ L'orchestrateur te donne le dossier du run. Lis `spec.md` (critères d'acceptati
   `minor`) sauf justification acceptable ; un fichier de `sensitive` non approuvé
   est au minimum `major` ;
 - si une tâche est nommée (`T2`…) : relis le diff non commité de cette tâche et ses
-  seuls critères d'acceptation ; les tâches précédentes sont déjà commitées.
+  seuls critères d'acceptation ; les tâches précédentes sont déjà commitées. Un cas
+  limite hors des critères de `spec.md` et des contrats de `plan.md` (sauf vrai bug,
+  régression ou faille de sécurité) est au plus `minor`, jamais `major` ou `critical`.
 
 Hors run (relecture demandée directement), `run` et `task` valent `null`.
 
@@ -66,10 +68,11 @@ Ignore le style qu'un formateur ou un linter attrape, et les préférences perso
 ## Vérifier avant de rapporter
 
 - Trace le chemin d'exécution réel avec des entrées concrètes.
-- Lance les contrôles du projet quand ils sont peu coûteux : ceux de `checks` dans
-  `.claude/team.json`, sinon ceux trouvés dans `package.json`, `pyproject.toml`,
-  `Makefile`, la CI. Jamais de commande qui modifie des fichiers, installe, commite,
-  pousse ou contacte un service distant.
+- Dans un run `/team`, si la Porte 2 (`run-checks`) vient de réussir sur l'arbre actuel
+  (`state.json` et `checks/*.log`), reprends ce résultat dans `checks` sans relancer
+  toute la suite ; ne lance qu'un test ciblé si tu dois vérifier un cas précis. Hors
+  run, lance les contrôles peu coûteux du projet. Jamais de commande qui modifie des
+  fichiers, installe, commite, pousse ou contacte un service distant.
 - Un constat non confirmé est retiré, ou marqué `plausible` avec ce qui le confirmerait.
 
 ## Rapport

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.7.1 — 2026-10-20 — Correctif SubagentHandback et optimisation des runs /team
+
+Corrigé :
+- `check-deliverable.mjs` : lorsque `last_assistant_message` est vide à l'arrêt d'un
+  sous-agent (cas où Claude Code termine le sous-agent par l'outil interne
+  `SubagentHandback`), le hook lit `agent_transcript_path` pour extraire le message de
+  `SubagentHandback` (ou le dernier bloc `text` d'assistant). Élimine les faux rejets
+  systématiques (`deliverable_rejected`) et enregistre automatiquement
+  `deliverables/<NNN>-<agent>.json` et `review-<Tn>-<k>.json`.
+- `sensitive.mjs` : seul le dossier `.claude/` à la racine du projet (`dirs[0] ===
+  '.claude'`) est classé `team-config`, en cohérence avec `guard-files.mjs` (plus de
+  faux positif sur `template/.claude/…` ou `packages/x/.claude/…`).
+
+Modifié (prompts et performance des runs) :
+- `team-rules` : impose l'usage des outils dédiés (`Read`, `Grep`, `Glob`, `Edit`,
+  `Write`) au lieu de `Bash` pour lire, chercher ou modifier des fichiers, et interdit
+  les boucles de test par mutation automatisée et les boucles d'attente (`sleep`).
+- `planner` et `templates/plan.md` : réserve `Bash` à l'inspection Git (`git status`,
+  `git log`, `git diff`) sans lancer la suite de tests complète pendant la
+  planification, et regroupe les changements liés en 1 à 3 tâches cohérentes en piste
+  standard (4 ou 5 au plus en piste full).
+- `code-reviewer` : dans un run `/team`, réutilise le résultat de la Porte 2
+  (`run-checks`) déjà acquis sur l'arbre courant sans relancer toute la suite de tests ;
+  les cas limites hors `spec.md` et `plan.md` (sauf vrai bug, régression ou faille de
+  sécurité) restent `minor`.
+- `expert` : `maxTurns: 80` (au lieu de `150`).
+- `team` (`SKILL.md`) : appelle les sous-agents au premier plan (hors parallélisme de
+  vague) pour que `record-metrics` et `check-deliverable` reçoivent les mesures
+  complètes dès la fin de l'appel.
+- `team-implementer` : précise le format `{ file, reason }` de `deviations` et
+  l'exécution des tests ciblés d'abord, puis une seule passe finale des contrôles.
+
 ## 0.7.0 — 2026-10-18 — Issues prêtes, priorité et dépendances
 
 Ajouté :

@@ -4,7 +4,7 @@ description: Développeur expert de l'équipe pour les problèmes de logique com
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: fable
 effort: max
-maxTurns: 150
+maxTurns: 80
 permissionMode: acceptEdits
 color: purple
 skills:
