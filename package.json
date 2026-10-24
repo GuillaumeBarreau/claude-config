@@ -1,6 +1,6 @@
 {
   "name": "claude-config",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "Équipe d'agents Claude Code (orchestrateur, planner, implementers généraliste et spécialisés, documentation, code-reviewer) et garde-fous, installable dans n'importe quel projet",
   "type": "module",

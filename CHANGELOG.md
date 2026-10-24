@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0 — 2026-10-24 — Agent analyste, audit proactif et mode QA
+
+Ajouté :
+- Agent `analyste` (Opus, lecture seule) : explore proactivement le code pour trouver
+  bugs, dette technique, failles de sécurité, améliorations et fonctionnalités
+  manquantes. Deux modes (`audit`, `targeted`) et six focus (`security`, `debt`,
+  `features`, `performance`, `architecture`, `all`). Chaque constat porte un
+  `issueTitle` et un `issueBody` au format issue prête (ADR 0009). Livrable structuré
+  validé par `check-deliverable`.
+- Skill `/team-audit` : orchestre l'agent `analyste`, présente les constats classés par
+  sévérité et type, et crée des issues GitHub (`agent-ready`) avec l'accord de
+  l'utilisateur. Script `create-issues.mjs` (Node sans dépendance, appelle `gh issue
+  create`).
+- Mode QA du `code-reviewer` : activé par `--qa` dans la description. Lance les tests,
+  vérifie chaque critère d'acceptation par exécution, teste les cas limites avec des
+  commandes concrètes. Chaque constat `confirmed` cite la commande et la sortie.
+- Diagrammes ASCII dans le README (workflow principal, interactions entre agents) et
+  dans USAGE (cycle d'escalade, cycle audit → issues → team-next).
+- ADR 0010 : agent analyste et audit proactif.
+- Tests : livrable analyste (modes, focus, summary, findings avec type/issueTitle),
+  SubagentStop matcher avec `analyste`, `create-issues.mjs` (formatage pur).
+
 ## 0.7.1 — 2026-10-20 — Correctif SubagentHandback et optimisation des runs /team
 
 Corrigé :

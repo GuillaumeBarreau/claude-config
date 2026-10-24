@@ -15,7 +15,8 @@
       "Bash(node .claude/skills/team/scripts/pr-comments.mjs *)",
       "Bash(node .claude/skills/team/scripts/lessons.mjs *)",
       "Bash(node .claude/skills/team/scripts/plan-waves.mjs *)",
-      "Bash(node .claude/skills/team-next/scripts/next-issue.mjs *)"
+      "Bash(node .claude/skills/team-next/scripts/next-issue.mjs *)",
+      "Bash(node .claude/skills/team-audit/scripts/create-issues.mjs *)"
     ]
   },
   "hooks": {
@@ -65,7 +66,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "planner|implementer|implementer-backend|implementer-frontend|documentation|expert|code-reviewer",
+        "matcher": "planner|implementer|implementer-backend|implementer-frontend|documentation|expert|code-reviewer|analyste",
         "hooks": [
           {
             "type": "command",

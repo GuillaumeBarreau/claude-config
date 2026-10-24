@@ -131,6 +131,62 @@ Relancer les contrôles d'un run :
 | `node .claude/skills/team/scripts/plan-waves.mjs .agent-runs/<id>` | Tâches qui pourraient tourner en parallèle (information) |
 | `node .claude/skills/team/scripts/lessons.mjs show` | Leçons enregistrées |
 
+## Auditer le code : `/team-audit`
+
+```
+/team-audit
+/team-audit --focus security
+/team-audit --scope src/auth/ --focus security
+/team-audit --focus debt
+```
+
+Lance l'agent `analyste` (lecture seule, Opus) pour explorer le code et trouver des
+problèmes : bugs, dette technique, failles de sécurité, améliorations, fonctionnalités
+manquantes. Les constats sont classés par sévérité et type, avec un `issueTitle` et un
+`issueBody` au format issue prête.
+
+Après l'analyse, `/team-audit` te demande quels constats transformer en issues GitHub
+(tous, critical+major, une sélection, ou aucun). Les issues créées portent le label
+`agent-ready` et sont directement exploitables par `/team-next`.
+
+```
+/team-audit ──▶ constats ──▶ issues GitHub
+                                  │
+                    ┌─────────────┘
+                    ▼
+              /team-next ──▶ /team ──▶ PR
+                                  │
+                    ┌─────────────┘
+                    ▼
+              code-reviewer ──▶ leçons
+                    │
+                    └──▶ /team-audit (cycle suivant)
+```
+
+L'agent `analyste` doit être activé dans `team.json` (`agents.analyste: true`, par
+défaut).
+
+### Cycle d'escalade (pour référence)
+
+```
+développeur (sonnet)
+    │ échec
+    ▼
+même agent (escalationModel = opus)
+    │ échec
+    ▼
+expert (fable, max)        ◀── si activé
+    │ échec
+    ▼
+planner (split)            ◀── une seule fois
+    │ sous-tâches
+    ▼
+boucle reprend
+    │ échec
+    ▼
+tâche failed, run blocked
+```
+
 ## Traiter les issues une par une : `/team-next`
 
 `/team-next` prend l'issue GitHub marquée `agent-ready` la plus prioritaire, **prête** et

@@ -15,7 +15,8 @@
     "implementer-frontend": true,
     "documentation": true,
     "code-reviewer": true,
-    "expert": true
+    "expert": true,
+    "analyste": true
   },
   "pullRequest": {
     "draft": true,

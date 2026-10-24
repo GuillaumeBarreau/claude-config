@@ -6,7 +6,7 @@ vérifié, exécute les tâches une à une (code, périmètre, contrôles, relec
 prépare une PR, puis suit la CI et les commentaires de relecture. **Push, PR et fusion
 restent humains.**
 
-> État : **v0.5**. Tout ce qui est décrit ici est implémenté et couvert par des tests
+> État : **v0.8.0**. Tout ce qui est décrit ici est implémenté et couvert par des tests
 > unitaires (hooks lancés avec leurs vrais payloads, `gh` et `claude` simulés). Rien
 > n'a encore été éprouvé sur un run réel complet : c'est le rôle du
 > [banc d'essai](bench/README.md). Voir le [CHANGELOG](CHANGELOG.md).
@@ -23,6 +23,7 @@ restent humains.**
 | `documentation`              | Sous-agent, Sonnet                     | README, docs/, CHANGELOG, ADR d'après le diff |
 | `expert`                     | Sous-agent, Fable (le plus capable), effort max | Logique complexe (algorithme, concurrence, états, bug de cause inconnue), dernier recours en correction |
 | `code-reviewer` (relecture + QA) | Sous-agent, lecture seule, Opus    | Verdict et constats           |
+| `analyste` (audit proactif)    | Sous-agent, lecture seule, Opus    | Constats classés et issues prêtes |
 
 Le planner attribue chaque tâche à un développeur selon ses fichiers (tout back,
 tout front, documentation seule, sinon `implementer`) ; `check-plan` refuse un agent
@@ -101,6 +102,9 @@ ils sont signalés en conflit. Usage détaillé : [docs/USAGE.md](docs/USAGE.md)
 
 ## Autres skills
 
+- `/team-audit` : lance l'agent `analyste` pour explorer le code (bugs, dette
+  technique, sécurité, améliorations), présente les constats classés et crée des issues
+  GitHub `agent-ready` avec ton accord.
 - `/team-next` : prend la prochaine issue GitHub prête et la réalise avec `/team`.
   Avec `/goal`, enchaîne les issues jusqu'à ce qu'il n'en reste plus (voir
   [docs/USAGE.md](docs/USAGE.md)).
@@ -110,6 +114,79 @@ ils sont signalés en conflit. Usage détaillé : [docs/USAGE.md](docs/USAGE.md)
   [docs/BACKLOG.md](docs/BACKLOG.md).
 - `/team-init`, `which-surface` (choisir entre hook, CLAUDE.md, sous-agent, skill ou
   rien).
+
+## Vue d'ensemble
+
+```
+┌──────────────── /team-audit ─────────────────┐
+│                                               │
+│  ┌───────────┐  constats   ┌──────────────┐  │
+│  │ analyste  │────────────▶│ utilisateur  │  │
+│  └───────────┘             │  approuve ?  │  │
+│                            └──────┬───────┘  │
+│                                   ▼          │
+│                          gh issue create     │
+│                          (agent-ready)       │
+└──────────────────────────────────────────────┘
+
+┌──────────────── /team <demande> ─────────────┐
+│                                               │
+│  demande ──▶ planner ──▶ check-plan ──▶ P1   │
+│                                          │    │
+│              ┌───────────────────────────┘    │
+│              ▼  (pour chaque tâche)           │
+│  ┌──────────────────────────────────────────┐ │
+│  │ développeur ──▶ check-scope              │ │
+│  │      ──▶ run-checks (P2)                 │ │
+│  │      ──▶ code-reviewer (P3) ──▶ commit   │ │
+│  │                                           │ │
+│  │ échec ──▶ escalade ──▶ expert            │ │
+│  │       ──▶ redécoupage ──▶ blocked        │ │
+│  └──────────────────────────────────────────┘ │
+│              ▼                                │
+│  pr.md + check-pr ──▶ P4 (accord) ──▶ push  │
+│  ──▶ ci-wait ──▶ pr-comments ──▶ done        │
+└──────────────────────────────────────────────┘
+
+P1 = porte plan   P2 = porte contrôles
+P3 = porte revue  P4 = porte livraison
+```
+
+```
+         ┌─────────┐
+         │  user   │
+         └────┬────┘
+              │ /team
+              ▼
+     ┌────────────────┐
+     │  orchestrateur  │◀─── team-rules
+     │    (/team)      │◀─── workflow.md
+     └──┬──┬──┬──┬──┬─┘
+        │  │  │  │  │
+  spec/ │  │  │  │  │ review
+  plan  │  │  │  │  │
+   ┌────┘  │  │  │  └────┐
+   ▼       │  │  │       ▼
+┌────────┐ │  │  │  ┌──────────┐
+│planner │ │  │  │  │  code-   │
+│ (opus) │ │  │  │  │ reviewer │
+└────────┘ │  │  │  │  (opus)  │
+           │  │  │  └──────────┘
+      code │  │  │
+   ┌───────┘  │  └───────┐
+   ▼          ▼          ▼
+┌──────┐ ┌────────┐ ┌────────┐
+│back- │ │implmtr │ │front-  │
+│end   │ │(défaut)│ │end     │
+└──────┘ └────────┘ └────────┘
+              │
+     escalade │
+              ▼
+         ┌────────┐  ┌────────────┐
+         │ expert │  │documentation│
+         │(fable) │  └────────────┘
+         └────────┘
+```
 
 ## Banc d'essai
 
