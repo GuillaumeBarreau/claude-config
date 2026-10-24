@@ -54,6 +54,17 @@ Tous rendent le livrable du schéma `implementer` (avec leur propre nom dans
 `.agent-runs/`, escalade de modèle, consultation et redécoupage valent pour chacun.
 Les tâches `CI<n>` et `PR<k>` créées par les scripts vont à `implementer`.
 
+## Analyse proactive
+
+L'agent `analyste` explore le code pour trouver des problèmes (bugs, dette technique,
+failles de sécurité, améliorations). Il est en lecture seule, comme le planner et le
+code-reviewer. Il est lancé par la skill `/team-audit`, pas par `/team` : il ne figure
+pas dans le routage des tâches et n'intervient jamais dans la boucle d'exécution.
+
+Ses constats portent un `issueTitle` et un `issueBody` au format issue prête (ADR
+0009). `/team-audit` les présente à l'utilisateur et crée les issues approuvées avec
+le label `agent-ready`, prêtes pour `/team-next`.
+
 ## Revue du plan (avant la porte 1)
 
 `check-plan.mjs .agent-runs/<id> --record` fait foi et écrit `planCheck` : chaque AC

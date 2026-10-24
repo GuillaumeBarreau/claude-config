@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { AGENTS, extractDeliverable, validateDeliverable } from '../template/.claude/skills/team/scripts/deliverable.mjs';
+import { AGENTS, ANALYSTE_MODES, ANALYSTE_FOCUSES, FINDING_TYPES, extractDeliverable, validateDeliverable } from '../template/.claude/skills/team/scripts/deliverable.mjs';
 import { parseFrontmatter, validate } from '../validate.mjs';
 import { TEMPLATE_CLAUDE, TEMPLATE_ROOT, templateCopy, writeFile } from './helpers.mjs';
 
@@ -106,6 +106,57 @@ test('validateDeliverable : verdict cohérent avec les constats', () => {
   assert.match(errs(reviewer({ findings: [finding({ severity: 'high' })] })), /severity/);
   assert.match(errs(reviewer({ findings: [finding({ line: '12' })] })), /line/);
   assert.match(errs(reviewer({ findings: [finding({ source: 'blog' })] })), /source/);
+});
+
+const analyste = (over = {}) => ({
+  agent: 'analyste', run: null, status: 'ready', questions: [], mode: 'audit', scope: null, focus: 'all',
+  findings: [{ ...finding(), type: 'security', source: 'review', issueTitle: 'Faille XSS', issueBody: '## Objectif\n\nCorr.\n\n## Comportement attendu ou critères\n\n- OK\n\n## Hors périmètre\n\n- Rien' }],
+  summary: '1 constat de sécurité.', ...over,
+});
+
+// --- validateDeliverable : analyste ---
+
+test('validateDeliverable : livrable analyste conforme', () => {
+  assert.deepEqual(validateDeliverable(analyste(), 'analyste'), []);
+  assert.deepEqual(validateDeliverable(analyste({ findings: [] }), 'analyste'), []);
+  assert.deepEqual(validateDeliverable(analyste({ mode: 'targeted', scope: 'src/auth.js' }), 'analyste'), []);
+});
+
+test('validateDeliverable : analyste mode invalide', () => {
+  const errs = validateDeliverable(analyste({ mode: 'scan' }), 'analyste').join('\n');
+  assert.match(errs, /mode/);
+});
+
+test('validateDeliverable : analyste focus invalide', () => {
+  const errs = validateDeliverable(analyste({ focus: 'ux' }), 'analyste').join('\n');
+  assert.match(errs, /focus/);
+});
+
+test('validateDeliverable : analyste summary manquant', () => {
+  const errs = validateDeliverable(analyste({ summary: '' }), 'analyste').join('\n');
+  assert.match(errs, /summary/);
+});
+
+test('validateDeliverable : analyste finding sans type', () => {
+  const f = { ...finding(), source: 'review', issueTitle: 'x', issueBody: 'x' };
+  const errs = validateDeliverable(analyste({ findings: [f] }), 'analyste').join('\n');
+  assert.match(errs, /type/);
+});
+
+test('validateDeliverable : analyste finding sans issueTitle', () => {
+  const f = { ...finding(), type: 'debt', source: 'review', issueBody: 'x' };
+  const errs = validateDeliverable(analyste({ findings: [f] }), 'analyste').join('\n');
+  assert.match(errs, /issueTitle/);
+});
+
+test('validateDeliverable : analyste scope requis en mode targeted', () => {
+  const errs = validateDeliverable(analyste({ mode: 'targeted' }), 'analyste').join('\n');
+  assert.match(errs, /scope/);
+});
+
+test('validateDeliverable : analyste scope doit être null en mode audit', () => {
+  const errs = validateDeliverable(analyste({ scope: 'src/' }), 'analyste').join('\n');
+  assert.match(errs, /scope/);
 });
 
 // --- check-deliverable (hook SubagentStop) ---

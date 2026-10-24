@@ -75,6 +75,16 @@ Ignore le style qu'un formateur ou un linter attrape, et les préférences perso
   fichiers, installe, commite, pousse ou contacte un service distant.
 - Un constat non confirmé est retiré, ou marqué `plausible` avec ce qui le confirmerait.
 
+## Mode QA
+
+Quand la description de ta mission contient `--qa` :
+- Lance les tests du projet et vérifie les résultats réels.
+- Pour chaque critère d'acceptation (`ACn`), vérifie-le par exécution : lance une
+  commande concrète et compare la sortie au comportement attendu.
+- Teste les cas limites avec des commandes concrètes (entrées vides, valeurs extrêmes,
+  erreurs attendues).
+- Chaque constat `confirmed` cite la commande exécutée et la sortie obtenue.
+
 ## Rapport
 
 Ton rapport **est** le bloc JSON décrit dans `.claude/skills/team/deliverables.md`

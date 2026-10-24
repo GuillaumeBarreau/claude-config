@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 // Développeurs : réalisent une tâche du plan (task.agent), même livrable que l'implementer,
 // mêmes interdits (guard-files). Source unique des noms d'agents de l'équipe.
 export const DEVELOPERS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'expert'];
-export const AGENTS = ['planner', ...DEVELOPERS, 'code-reviewer'];
+export const AGENTS = ['planner', ...DEVELOPERS, 'code-reviewer', 'analyste'];
 const STATUSES = ['ready', 'blocked', 'needs_input'];
 const QUESTION_KINDS = ['technical', 'product'];
 const PLANNER_MODES = ['spec', 'plan', 'spec+plan', 'consult', 'split'];
@@ -22,6 +22,9 @@ const VERDICTS = ['approve', 'changes_requested', 'blocked'];
 const SEVERITIES = ['critical', 'major', 'minor'];
 const CONFIDENCES = ['confirmed', 'plausible'];
 const SOURCES = ['review', 'pr-comment', 'ci'];
+export const ANALYSTE_MODES = ['audit', 'targeted'];
+export const ANALYSTE_FOCUSES = ['security', 'debt', 'features', 'performance', 'architecture', 'all'];
+export const FINDING_TYPES = ['security', 'debt', 'features', 'performance', 'architecture'];
 
 export const SCHEMA_HINT = 'Termine ton message par un bloc ```json conforme à .claude/skills/team/deliverables.md, '
   + 'sans aucun texte après (champs communs : agent, run, status, questions).';
@@ -135,6 +138,21 @@ function checkImplementer(errors, d) {
   }
 }
 
+function checkAnalysteFinding(errors, f, where) {
+  checkFinding(errors, f, where);
+  if (!FINDING_TYPES.includes(f.type)) errors.push(`${where}.type : « ${f.type} » invalide (${FINDING_TYPES.join(', ')})`);
+  texts(errors, f, where, ['issueTitle', 'issueBody']);
+}
+
+function checkAnalyste(errors, d) {
+  oneOf(errors, 'mode', d.mode, ANALYSTE_MODES);
+  oneOf(errors, 'focus', d.focus, ANALYSTE_FOCUSES);
+  if (d.mode === 'targeted' && !isText(d.scope)) errors.push('scope : texte non vide obligatoire en mode targeted');
+  if (d.mode === 'audit' && d.scope !== null) errors.push('scope : doit être null en mode audit');
+  list(errors, d, 'findings', (f, w) => checkAnalysteFinding(errors, f, w));
+  if (!isText(d.summary)) errors.push('summary : texte non vide obligatoire');
+}
+
 function checkReviewer(errors, d) {
   if (d.task !== null && !isText(d.task)) errors.push('task : identifiant de la tâche, ou null hors tâche');
   oneOf(errors, 'verdict', d.verdict, VERDICTS);
@@ -166,6 +184,7 @@ export function validateDeliverable(d, agentType) {
   if (agentType === 'planner') checkPlanner(errors, d);
   if (DEVELOPERS.includes(agentType)) checkImplementer(errors, d);
   if (agentType === 'code-reviewer') checkReviewer(errors, d);
+  if (agentType === 'analyste') checkAnalyste(errors, d);
   return errors;
 }
 

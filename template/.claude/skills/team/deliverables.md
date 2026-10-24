@@ -1,9 +1,9 @@
 # Livrables structurés des agents
 
-Chaque agent de l'équipe (`planner`, les développeurs, `code-reviewer`) **termine** son
-message final par un bloc ```json, **sans aucun texte après**. Ce bloc est la seule
-partie que l'orchestrateur et les scripts lisent ; la prose qui précède sert à
-l'utilisateur.
+Chaque agent de l'équipe (`planner`, les développeurs, `code-reviewer`, `analyste`)
+**termine** son message final par un bloc ```json, **sans aucun texte après**. Ce bloc
+est la seule partie que l'orchestrateur et les scripts lisent ; la prose qui précède
+sert à l'utilisateur.
 
 Le hook `check-deliverable` (SubagentStop) valide ce bloc. S'il est absent ou
 invalide, l'agent est renvoyé une fois au travail avec la liste des erreurs. Un
@@ -16,7 +16,7 @@ Vérification manuelle (repli) :
 
 | Champ       | Valeur                                                                 |
 | ----------- | ---------------------------------------------------------------------- |
-| `agent`     | ton nom d'agent : `planner`, `implementer`, `implementer-backend`, `implementer-frontend`, `documentation` ou `code-reviewer` |
+| `agent`     | ton nom d'agent : `planner`, `implementer`, `implementer-backend`, `implementer-frontend`, `documentation`, `code-reviewer` ou `analyste` |
 | `run`       | id du run (`.agent-runs/<id>/`), ou `null` hors run                    |
 | `status`    | `ready`, `blocked` ou `needs_input`                                    |
 | `questions` | `[{ "kind": "technical" \| "product", "text": "…" }]`, liste vide sinon |
@@ -133,3 +133,44 @@ Cohérence : `approve` ⇒ aucun constat `critical` ou `major` **confirmé** ;
 
 Les constats des commentaires de PR (`pr-comments-<k>.json`) et de la CI suivent le
 même format : le développeur les lit tels quels.
+
+## analyste
+
+| Champ      | Valeur                                                                 |
+| ---------- | ---------------------------------------------------------------------- |
+| `mode`     | `audit` ou `targeted`                                                  |
+| `scope`    | chemin ou aspect ciblé (texte non vide en mode `targeted`, `null` sinon) |
+| `focus`    | `security`, `debt`, `features`, `performance`, `architecture` ou `all` |
+| `findings` | constats (format ci-dessous), du plus grave au moins grave             |
+| `summary`  | résumé en une à trois phrases                                          |
+
+Cohérence : chaque constat porte un `type`, un `issueTitle` et un `issueBody` en plus
+des champs du format constat commun. Le champ `source` vaut toujours `review`.
+
+```json
+{
+  "agent": "analyste",
+  "run": null,
+  "status": "ready",
+  "questions": [],
+  "mode": "audit",
+  "scope": null,
+  "focus": "all",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "type": "security",
+      "file": "src/auth.js",
+      "line": 18,
+      "problem": "Le token JWT n'est pas vérifié côté serveur.",
+      "scenario": "Un token expiré ou forgé donne accès à toutes les routes protégées.",
+      "fix": "Ajouter la vérification de signature et d'expiration dans le middleware auth.",
+      "confidence": "confirmed",
+      "source": "review",
+      "issueTitle": "Vérifier le token JWT côté serveur",
+      "issueBody": "## Objectif\n\nSécuriser les routes protégées en vérifiant la signature et l'expiration du token JWT dans le middleware auth.\n\n## Comportement attendu ou critères\n\n- Le middleware rejette un token expiré (401).\n- Le middleware rejette un token avec une signature invalide (401).\n\n## Hors périmètre\n\n- Renouvellement automatique du token."
+    }
+  ],
+  "summary": "1 constat majeur de sécurité : le token JWT n'est pas vérifié côté serveur."
+}
