@@ -1,5 +1,181 @@
 # Changelog
 
+## 0.11.0 — 2026-11-13 — Revue de PR : relecteurs recalibrés
+
+Premier essai réel (une PR de 13 fichiers) : `/team-review` a rendu 1 constat là où une
+revue manuelle à trois relecteurs en a rendu 7. Les relecteurs avaient vu une partie des
+autres points mais les avaient écartés sur consigne.
+
+Modifié :
+- `cc-pr-reviewer-frontend`, `-backend`, `-architecture` : tout constat prouvé est
+  remonté, mineur compris (l'utilisateur trie ; `minor` → `COULD`). Supprimé : « ne
+  remplis pas avec des remarques mineures ». Nouvelle priorité « Maintenabilité » (règle
+  dupliquée, clé ou identifiant construit dynamiquement, attribut de test réutilisé,
+  refactor de contrat partagé non annoncé, écart à une convention écrite). `checked` ne
+  contient plus de réserves : « hérité », « hors périmètre » deviennent des constats.
+- Les mêmes relecteurs sont invités à **exécuter ce qui tranche**, en lecture seule :
+  script jetable dans le dossier temporaire du système, comparaison de clés de
+  traduction, linter ou contrôle de types ciblés.
+- Les quatre agents de revue reçoivent `PowerShell` en plus de `Bash` (Bash peut
+  échouer sous Windows, ce qui empêchait toute exécution).
+- `pr-fetch.mjs` : le résumé de la CI ne compte qu'une fois chaque contrôle, par sa
+  dernière exécution (même workflow et même nom). Un contrôle annulé puis relancé avec
+  succès ne fait plus passer la CI en « failed ».
+- `findings.mjs` : sans constat à contre-vérifier, `verify-input.json` n'est pas écrit
+  (et il est supprimé s'il restait d'un passage précédent).
+- `/team-review`, étape 6 : le rapport local est lancé d'office et son URL complète est
+  donnée dans la réponse.
+- `install.mjs` : rappelle qu'une session déjà ouverte ne charge ni les nouveaux hooks
+  ni les nouveaux agents.
+- Documentation, ADR et tests : plus aucune référence à un projet cible particulier ;
+  les exemples de motifs d'axes et les chemins des fixtures sont neutres (`client/**`,
+  `server/**`, `ui/`).
+
+Ajouté :
+- Constat de revue de PR : champ facultatif `preexisting` (problème antérieur à la PR,
+  dans du code qu'elle touche ou dont elle dépend), incompatible avec `regression: true`,
+  conservé dans `review.json` et affiché « préexistant » dans le rapport local.
+
+## 0.10.0 — 2026-11-13 — Agents préfixés cc-
+
+**Changement cassant.** Les douze agents du template sont renommés avec le préfixe
+`cc-` (claude-config) : `cc-planner`, `cc-implementer`, `cc-implementer-backend`,
+`cc-implementer-frontend`, `cc-documentation`, `cc-expert`, `cc-code-reviewer`,
+`cc-analyste`, `cc-pr-reviewer-frontend`, `cc-pr-reviewer-backend`,
+`cc-pr-reviewer-architecture`, `cc-pr-verifier`. Un projet qui a son propre
+`code-reviewer` (cas réel) n'est plus en conflit à l'installation et n'est plus visé par
+le hook `check-deliverable`, qui ne contrôle que nos agents. Les skills ne changent pas
+de nom. Le nom préfixé vaut partout : `name:` et fichier, listes de `deliverable.mjs`
+et `guard-files.mjs`, matcher `SubagentStop`, clés `agents` de `team.json`, champ
+`agent` des livrables et des tâches, descriptions d'appel (`cc-implementer T1 #1`).
+ADR 0012.
+
+Mise à jour d'un projet installé : relancer `node install.mjs <projet>` (d'abord avec
+`--dry-run`) :
+- les anciens fichiers `agents/<nom>.md` intacts sont supprimés (« retiré du
+  template ») ; un fichier modifié localement est conservé et signalé ;
+- `team.json` : les clés `agents` sans préfixe sont renommées à leur place, valeur
+  conservée (message « migré ») — seule écriture jamais faite dans ce fichier par
+  l'installeur ; une ancienne clé restante est signalée par `validate.mjs` avec le
+  nouveau nom ;
+- les runs en cours dans `.agent-runs/` (`agent: "implementer"`…) restent valides :
+  `check-plan` et `check-state` lisent un ancien nom comme son équivalent préfixé, et
+  l'empreinte du plan ne change pas.
+
+Ajouté :
+- `validate.mjs` : un agent géré par claude-config (template, ou présent dans le
+  manifeste d'un projet installé) doit porter le préfixe `cc-` ; une ancienne clé
+  `agents.<nom>` de `team.json` est signalée avec le nouveau nom. Les agents propres au
+  projet ne sont pas concernés.
+- `install.mjs` : action « migré » (`migrateTeamAgents`), respectée par `--dry-run`.
+- `install.mjs --local` : installation personnelle, invisible pour Git. Réglages dans
+  `.claude/settings.local.json` (mêmes règles de fusion), `.gitignore` du projet
+  jamais touché (`--ignore-claude` / `--no-ignore-claude` refusés), chaque fichier
+  installé — jamais `.claude/` en entier, jamais un fichier préexistant du projet —
+  inscrit avec le manifeste, `team.json` s'il a été créé, `.agent-runs/` et
+  `.agent-reviews/` dans l'exclusion locale du dépôt (`git rev-parse --git-path
+  info/exclude`, worktree compris), dans un bloc entre marqueurs réécrit en entier à
+  chaque passage, chemins ancrés à la racine du dépôt. Mode mémorisé dans le manifeste
+  (`"mode": "local"`, conservé sans option ; `--no-local` repasse en partagé et retire
+  le bloc). Un fichier déjà suivi par Git est signalé (l'exclusion ne le cache pas) ;
+  hors dépôt Git, erreur sans rien écrire ; `--dry-run` affiche le bloc et le fichier
+  d'exclusion. Commandes `git` via l'exécuteur injectable de `gh.mjs`.
+- `deliverable.mjs` : `AGENT_PREFIX`, `DEFAULT_DEVELOPER`, `LEGACY_AGENTS`,
+  `canonicalAgent`.
+- Revue de PR : **les agents lisent le code au commit de la PR**, plus celui de la
+  branche où se trouve l'utilisateur (faux constats « appelant non mis à jour »,
+  problèmes manqués dans les fichiers lus dans leur version de base). `pr-fetch.mjs`
+  choisit une source par round, enregistrée dans `review.json` (`rounds[k].source =
+  { mode, headSha, path }`) et `pr.json`, rappelée aux quatre agents par la skill :
+  `working-tree` si `git rev-parse HEAD` est le commit de tête (modifications non
+  commitées signalées) ; sinon `git-show` par défaut — `git fetch --no-tags --quiet
+  origin +refs/pull/<n>/head:refs/claude-config/pr-<n>` (fork compris, aucune branche
+  créée), `git cat-file -e`, lecture des fichiers de la PR par `git show <sha>:<chemin>`
+  et `git grep -n … <sha>`, les autres fichiers restant ceux de la branche courante
+  (rappelé par `findings.mjs` et dans les limites) ; `worktree` seulement avec
+  `--worktree` (`/team-review <n> --worktree`, `pr-fetch.mjs <n> --worktree`,
+  `review-batch.mjs --worktree` qui ne le transmet que s'il le reçoit) — `git worktree
+  add --detach .agent-reviews/pr-<n>/worktree <sha>`, ancien worktree retiré avant,
+  recréé à chaque round, sans `npm install`. Jamais de checkout dans la copie de
+  travail. Nouveau script `source.mjs … --remove-worktree` (clôture, `--prepare`), qui
+  ne vise qu'un dossier sous `.agent-reviews/` ; `guard-bash` demande un accord pour
+  `git worktree remove --force` ailleurs. Section « Lire le code de la PR » dans
+  `workflow.md` et `docs/REVIEW.md` ; `argument-hint` de la skill :
+  `<numéro de PR> [--worktree] [--prepare] | list | stats`.
+- Tests : 34 nouveaux (467 au total) — règle du préfixe (template et projet installé),
+  ancienne clé de `team.json`, mise à jour d'un projet installé en 0.9 (simulation
+  comprise), `migrateTeamAgents`, anciens noms acceptés par `check-plan` et
+  `check-state` ; `--local` (vrai dépôt Git et worktree avec `git status --porcelain`
+  vide, `.gitignore` intact, bloc réécrit et reste du fichier conservé, fichier
+  d'exclusion donné par git, sous-dossier du dépôt, `settings.local.json`, mode
+  mémorisé, refus avec `--ignore-claude` et hors dépôt, `--dry-run`) ; source du round
+  (`tests/review-source.test.mjs` : les trois modes avec git simulé, fetch ou cat-file
+  en échec, ancien worktree retiré, nouveau round, round à jour revérifié, `source`
+  dans `review.json` et `pr.json`, `removeWorktree` limité à `.agent-reviews/`,
+  `review-batch --worktree`, `guard-bash` ; et sur un vrai dépôt `git init` avec
+  `origin` local : worktree créé au bon commit, retiré, `git worktree list` propre,
+  copie de travail principale intacte, `git show` en mode `git-show`).
+- `docs/ADD_AGENT.md` : convention du préfixe.
+
+## 0.9.0 — 2026-11-13 — Revue de PR
+
+Ajouté :
+- Skill `/team-review` (lancement manuel) : revue d'une PR GitHub. `/team-review <n>`
+  relève la PR, lance les relecteurs selon les fichiers touchés, fait contre-vérifier
+  les constats graves, fait trier par l'utilisateur, puis publie une seule revue GitHub
+  après aperçu et accord. `list` (PR ouvertes et état local), `stats` (justesse des
+  agents), `--prepare` (relecture sans triage ni publication). ADR 0011.
+- Agents `pr-reviewer-frontend`, `pr-reviewer-backend`, `pr-reviewer-architecture` et
+  `pr-verifier` (Opus 5.5, effort medium, lecture seule). Les relecteurs rédigent un
+  brouillon de commentaire en français pour chaque constat ; le vérificateur reçoit les
+  constats `critical` et `major` sans preuve ni raisonnement et rend `confirmed`,
+  `downgraded` ou `rejected` avec le motif. Livrables décrits dans `deliverables.md`
+  (sections « Relecteurs de PR » et « pr-verifier ») et validés par `check-deliverable`.
+- Scripts Node sans dépendance dans `skills/team-review/scripts/` :
+  - `pr-fetch.mjs` : PR, CI, commentaires existants, diff, fichiers par axe ; un round
+    par commit de tête ; mode `comments` (PR d'un collègue) ou `fixes` (sa propre PR).
+  - `findings.mjs` : fusion et dédoublonnage par empreinte (fichier, extrait normalisé,
+    nature), identifiants `R1`…, étiquettes `MUST` / `SHOULD` / `COULD` / `ASK`, ancrage
+    sur une ligne du diff ou dans le corps de la revue, verdicts du vérificateur, suivi
+    `new` / `persisting` / `fixed` / `unknown` entre rounds.
+  - `decisions.mjs` : décision (`ok`, `ko`, `discuss`), note de justesse (`correct`,
+    `incorrect`), étiquette, texte du commentaire et note personnelle ; refuse toute
+    modification d'un constat publié.
+  - `serve.mjs` et `report/index.html` : rapport de triage local sur `127.0.0.1`, jeton
+    aléatoire dans l'URL, sans route de publication.
+  - `publish.mjs` : `--dry-run` (aperçu), puis une revue `COMMENT` (`--event` pour
+    `APPROVE` ou `REQUEST_CHANGES`) avec les seuls constats validés ; refus si la PR a
+    bougé depuis le round (sortie 3) ; idempotent. Mode `fixes` : `fixes.md`, aucun
+    appel GitHub.
+  - `stats.mjs` : précision par agent et `.agent-reviews/calibration.json` (faux
+    positifs passés, transmis aux relecteurs suivants).
+  - `pr-list.mjs` et `review-batch.mjs` (préparation en lot hors session, simulation
+    sans `--yes`).
+- Magasin `.agent-reviews/pr-<n>/` (personnel, ignoré par Git).
+- `docs/REVIEW.md` : guide d'usage et limites connues.
+- Tests : 63 nouveaux (433 au total) — récupération de la PR, fusion et suivi,
+  triage, rapport local, publication, agents et livrables, garde-fou, installation et
+  validation. `gh` est simulé partout.
+
+Modifié :
+- `guard-bash` : demande l'accord pour `publish.mjs` sans `--dry-run` et pour
+  `review-batch.mjs --yes`, quel que soit le chemin du script.
+- `check-deliverable` : range le livrable d'un agent de revue dans
+  `.agent-reviews/<review>/rounds/<round>/deliverables/`.
+- `settings.json` : permissions des scripts de lecture et de triage de `team-review`
+  (pas `publish.mjs` ni `review-batch.mjs`) ; les quatre agents ajoutés au matcher
+  `SubagentStop`.
+- `team.json` : les quatre agents dans `agents` ; nouvelle section `review` (`axes`,
+  `architectureMinLines`, `maxInlineCould`, `batch.maxPrs`, `event`, `language`).
+  `validate.mjs` la contrôle. `event` et `language` sont validés mais sans effet.
+- `/team-init` propose `review.axes` d'après la structure du projet.
+- `install.mjs` ajoute `.agent-reviews/` au `.gitignore` du projet s'il n'y est pas.
+
+Non éprouvé : rien n'a tourné sur une vraie PR ; réponse de l'API de création de revue
+supposée ; page de triage jamais ouverte dans un navigateur ; préparation en lot jamais
+lancée en mode non interactif. Prévu, non implémenté : tests de la PR dans le
+navigateur. Détail : `docs/REVIEW.md`, « Limites connues ».
+
 ## 0.8.0 — 2026-10-24 — Agent analyste, audit proactif et mode QA
 
 Ajouté :

@@ -1,5 +1,6 @@
 exemple/
 node_modules/
 .agent-runs/
+.agent-reviews/
 # Copie installée de la configuration (npm run dogfood) : régénérée, jamais commitée.
 /.claude/

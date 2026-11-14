@@ -8,9 +8,9 @@ lancent depuis la racine du projet.
 
 | Piste        | Quand                                                                                   | Étapes                                                                  |
 | ------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **quick**    | Changement évident et local : typo, petit bug dont la cause est connue, ≤ ~3 fichiers, sans zone sensible | Orchestrateur → contrôles → `code-reviewer` → préparation de la livraison |
-| **standard** | Cas par défaut : besoin clair, une à quelques tâches                                    | `planner` (`spec+plan`) → porte 1 → exécution → contrôles → relecture → livraison |
-| **full**     | Besoin flou, transverse, plusieurs composants, ou zone sensible                          | `planner` (`spec`) → clarification → `planner` (`plan`) → porte 1 → exécution séquentielle |
+| **quick**    | Changement évident et local : typo, petit bug dont la cause est connue, ≤ ~3 fichiers, sans zone sensible | Orchestrateur → contrôles → `cc-code-reviewer` → préparation de la livraison |
+| **standard** | Cas par défaut : besoin clair, une à quelques tâches                                    | `cc-planner` (`spec+plan`) → porte 1 → exécution → contrôles → relecture → livraison |
+| **full**     | Besoin flou, transverse, plusieurs composants, ou zone sensible                          | `cc-planner` (`spec`) → clarification → `cc-planner` (`plan`) → porte 1 → exécution séquentielle |
 
 Zones sensibles (jamais quick) : dépendances, migrations, authentification et
 permissions, secrets, CI, API publique, suppression de données. `sensitive.mjs` les
@@ -22,14 +22,14 @@ reconnaît par leur chemin (motifs ajoutables dans `team.json` → `sensitivePat
 | ------------------ | -------------------- | ------------------------------ | ---------------------------- | ------------------------------------------------ | ---------------------------------------- | ------------------ |
 | Réception          | orchestrateur        | Demande                        | `request.md`, `state.json`   | Run créé, `check-state` OK                       | Demande vide                             | Qualification      |
 | Qualification      | orchestrateur        | Demande, `git status`          | Piste annoncée               | Piste choisie et justifiée                       | —                                        | Spec ou quick      |
-| Spécification      | `planner`            | Demande, mode                  | `spec.md`                    | AC vérifiables, hors périmètre, hypothèses       | Questions `product` → `awaiting_input`   | Plan               |
+| Spécification      | `cc-planner`            | Demande, mode                  | `spec.md`                    | AC vérifiables, hors périmètre, hypothèses       | Questions `product` → `awaiting_input`   | Plan               |
 | Clarification      | orchestrateur + user | Questions du planner           | Réponses dans `state.json`   | Plus de question bloquante                       | > `maxClarificationRounds` → `blocked`   | Spec ou plan       |
-| Plan               | `planner`            | Spec validée                   | `plan.md`, tâches            | `check-plan --record` passé                      | Erreurs → retour au planner              | Porte 1            |
+| Plan               | `cc-planner`            | Spec validée                   | `plan.md`, tâches            | `check-plan --record` passé                      | Erreurs → retour au planner              | Porte 1            |
 | Porte 1            | utilisateur (orchestrateur en autonomie) | Résumé du plan | `gates.plan = passed`      | « Oui » explicite, ou conditions d'autonomie     | Modifications → plan                     | Exécution          |
-| Exécution          | `task.agent` (défaut `implementer`) | Une tâche `ready`, run | Changements non commités     | Livrable `ready` avec preuves                    | Question `technical` → consultation ; `product` → `awaiting_input` | Périmètre |
+| Exécution          | `task.agent` (défaut `cc-implementer`) | Une tâche `ready`, run | Changements non commités     | Livrable `ready` avec preuves                    | Question `technical` → consultation ; `product` → `awaiting_input` | Périmètre |
 | Périmètre          | `check-scope.mjs`    | Diff de la tâche               | `task.scope`                 | `ok`, ou écart justifié                          | Fichier sensible → accord de l'utilisateur | Contrôles        |
 | Contrôles (porte 2)| `run-checks.mjs`     | `checks` de `team.json`        | Statuts, `checks/*.log`      | Tous les `required` à `passed`                   | `failed` → correction                    | Relecture          |
-| Relecture (porte 3)| `code-reviewer`      | Diff de la tâche, run          | `review-<Tn>-<k>.json`       | Verdict `approve`, AC de la tâche couverts       | `changes_requested` → correction         | Commit             |
+| Relecture (porte 3)| `cc-code-reviewer`      | Diff de la tâche, run          | `review-<Tn>-<k>.json`       | Verdict `approve`, AC de la tâche couverts       | `changes_requested` → correction         | Commit             |
 | Correction         | `task.agent` (escalade) | Constats, journaux en échec | Changements complétés        | Retour au périmètre                              | Tentatives épuisées → redécoupage, puis `blocked` | Périmètre  |
 | Commit             | orchestrateur        | Tâche approuvée                | Un commit par tâche          | Tâche `done`                                     | —                                        | Tâche suivante     |
 | Livraison (porte 4)| orchestrateur + user | Branche, `pr.md` conforme (`check-pr`) | Push et PR brouillon **si accord** | Accord explicite pour cette action | Refus → reste local                 | CI                 |
@@ -43,20 +43,20 @@ activé dans `team.json`) :
 
 | Agent                  | Tâches                                                     | Skills préchargées                              |
 | ---------------------- | ---------------------------------------------------------- | ----------------------------------------------- |
-| `implementer` (défaut) | mixtes front et back, projet sans séparation, outillage    | `team-rules`, `team-implementer`                |
-| `implementer-backend`  | tous les fichiers côté serveur                             | + `conventions-backend` (propre au projet)      |
-| `implementer-frontend` | tous les fichiers côté interface                           | + `conventions-frontend` (propre au projet)     |
-| `documentation`        | documentation seule (README, docs/, CHANGELOG, ADR)        | `team-rules`                                    |
-| `expert`               | logique complexe (algorithme, concurrence, états, précision, bug de cause inconnue), et dernier recours en correction | `team-rules`, `team-implementer` |
+| `cc-implementer` (défaut) | mixtes front et back, projet sans séparation, outillage    | `team-rules`, `team-implementer`                |
+| `cc-implementer-backend`  | tous les fichiers côté serveur                             | + `conventions-backend` (propre au projet)      |
+| `cc-implementer-frontend` | tous les fichiers côté interface                           | + `conventions-frontend` (propre au projet)     |
+| `cc-documentation`        | documentation seule (README, docs/, CHANGELOG, ADR)        | `team-rules`                                    |
+| `cc-expert`               | logique complexe (algorithme, concurrence, états, précision, bug de cause inconnue), et dernier recours en correction | `team-rules`, `team-implementer` |
 
-Tous rendent le livrable du schéma `implementer` (avec leur propre nom dans
+Tous rendent le livrable du schéma `cc-implementer` (avec leur propre nom dans
 `agent`) et sont soumis aux mêmes règles : `guard-files` leur refuse `.claude/` et
 `.agent-runs/`, escalade de modèle, consultation et redécoupage valent pour chacun.
-Les tâches `CI<n>` et `PR<k>` créées par les scripts vont à `implementer`.
+Les tâches `CI<n>` et `PR<k>` créées par les scripts vont à `cc-implementer`.
 
 ## Analyse proactive
 
-L'agent `analyste` explore le code pour trouver des problèmes (bugs, dette technique,
+L'agent `cc-analyste` explore le code pour trouver des problèmes (bugs, dette technique,
 failles de sécurité, améliorations). Il est en lecture seule, comme le planner et le
 code-reviewer. Il est lancé par la skill `/team-audit`, pas par `/team` : il ne figure
 pas dans le routage des tâches et n'intervient jamais dans la boucle d'exécution.
@@ -94,11 +94,11 @@ Code 1 → le plan repart au planner avec les erreurs. Restent à ton jugement :
 **Boucle, une tâche à la fois** : la prochaine tâche `ready` dont toutes les
 dépendances sont `done`.
 1. Tâche `in_progress`. Lance l'agent de la tâche (`subagent_type` = `task.agent`,
-   défaut `implementer` ; description `"<task.agent> <Tn> #<k>"`) avec le chemin du
+   défaut `cc-implementer` ; description `"<task.agent> <Tn> #<k>"`) avec le chemin du
    run, l'id de la tâche, la branche attendue et, en correction, les fichiers à
    traiter par leur chemin (`review-<Tn>-<k>.json`, `pr-comments-<k>.json`,
    `checks/*.log`, `ci/*.log`) : il les lit tels quels.
-2. Lis son bloc JSON. Question `technical` → **consultation** : `planner` en mode
+2. Lis son bloc JSON. Question `technical` → **consultation** : `cc-planner` en mode
    `consult` avec la question et le contexte de la tâche, réponse transmise au
    développeur (au plus 2 par tâche, compteur `consultations`, événement
    `consulted`). Question `product` → run `awaiting_input`. `blocked` → run `blocked`.
@@ -108,7 +108,7 @@ dépendances sont `done`.
    (`scope.approvedBy: "user"`), sinon run `blocked`.
 4. Statut `checking` : `run-checks.mjs .agent-runs/<id> --task <Tn>`. Échec →
    correction (étape 7).
-5. Statut `reviewing`, tâche `in_review` : `code-reviewer` avec le chemin du run et
+5. Statut `reviewing`, tâche `in_review` : `cc-code-reviewer` avec le chemin du run et
    l'id de la tâche (il relit `git diff`). Le hook a écrit `review-<Tn>-<k>.json` (le
    plus grand k est la dernière relecture) : `verdict` → `validation.review`.
    `changes_requested` → correction (étape 7).
@@ -117,10 +117,10 @@ dépendances sont `done`.
 7. **Correction**, `attempts` + 1 :
    - 1re correction : le même agent (`task.agent`) avec `model: <escalationModel>` dans l'appel
      (défaut `opus`), événement `escalated` ;
-   - correction suivante (si `maxAttempts` le permet) : **`expert`** reprend la tâche
+   - correction suivante (si `maxAttempts` le permet) : **`cc-expert`** reprend la tâche
      avec tout son historique (constats, journaux, livrables précédents), s'il est
-     activé ; événement `escalated` (détail « expert ») ;
-   - au-delà de `maxAttempts` : **redécoupage**, une seule fois. `planner` en mode
+     activé ; événement `escalated` (détail « cc-expert ») ;
+   - au-delà de `maxAttempts` : **redécoupage**, une seule fois. `cc-planner` en mode
      `split` avec la tâche, ses constats et ses journaux. Les nouvelles tâches
      (`T<n>.<m>`, `origin: "split"`, `splitFrom`) remplacent l'originale et
      reprennent ses dépendances. Reporte aussi les dépendances aval : dans
@@ -180,7 +180,7 @@ GitHub : skill `/team-backlog` et `docs/BACKLOG.md`.
 | Hook                | Quand                            | Effet |
 | ------------------- | -------------------------------- | ----- |
 | `guard-bash`        | Avant Bash / PowerShell          | **Refuse** commit ou push sur la branche de base, fusion de PR (`gh pr merge`, `glab mr merge`, `gh api` qui écrit sur `/pulls/<n>/merge` ou mutation `mergePullRequest`), `Co-Authored-By` dans un commit, `--no-verify`, lecture de `.env`, `rm -rf` massif. **Demande l'accord** pour push, publication, tag, `reset --hard`, `clean -f`, réécriture d'historique, ajout de dépendance, et toute commande `gh` qui n'est pas une lecture (`view`, `list`, `status`, `diff`, `checks`, `run watch`, `search`, `auth status`, `gh api` en GET sans champ). Préfixes (`(`, `&`, `env`, `sudo`, `$(…)`) et chemins (`gh.exe`) normalisés avant contrôle |
-| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture d'un développeur (`implementer`, `implementer-backend`, `implementer-frontend`, `documentation`, `expert`) dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
+| `guard-files`       | Avant Read / Edit / Write / Grep | **Refuse** les fichiers de secrets, et toute écriture d'un développeur (`cc-implementer`, `cc-implementer-backend`, `cc-implementer-frontend`, `cc-documentation`, `cc-expert`) dans `.claude/` ou `.agent-runs/`. **Demande l'accord** pour modifier les réglages et les hooks de l'équipe |
 | `check-run-state`   | Après Edit / Write               | Relance `check-state` sur chaque `state.json` écrit ; une erreur revient au modèle |
 | `check-deliverable` | Fin d'un sous-agent de l'équipe  | **Renvoie l'agent au travail**, une fois, si son bloc JSON final manque ou est invalide ; enregistre `deliverables/` et `review-*.json` ; n'écrit jamais `state.json` |
 | `record-metrics`    | Après Agent, et Stop             | Ajoute une mesure à `metrics.jsonl` ; ne bloque jamais |
@@ -198,7 +198,7 @@ restent la référence.
 3. Sinon : crée la branche `<branchPrefix><id>` depuis la branche courante, fais le
    changement, puis `check-scope.mjs .agent-runs/<id>` (un fichier sensible interdit
    la piste quick : passe en standard), `run-checks.mjs .agent-runs/<id>`, et
-   `code-reviewer` avec le chemin du run (`review-<k>.json`).
+   `cc-code-reviewer` avec le chemin du run (`review-<k>.json`).
 4. Constat critique ou majeur → corrige ; au plus `maxAttempts` tours.
 5. Commit sur la branche dédiée, `pr.md` selon [les conventions de PR](pr-conventions.md)
    et `check-pr.mjs`, puis porte 4 : push et PR seulement après un accord explicite.
@@ -255,7 +255,7 @@ Le script juge un état, pas son historique : un changement de piste se trace da
 - `maxClarificationRounds` (défaut 2) tours de questions, puis `blocked` ou
   poursuite avec des hypothèses explicites validées par l'utilisateur.
 - `maxAttempts` (défaut 2) tours de correction par tâche, dont le premier sur
-  `escalationModel`, le suivant par `expert`, puis un seul redécoupage, puis tâche
+  `escalationModel`, le suivant par `cc-expert`, puis un seul redécoupage, puis tâche
   `failed` et run `blocked`.
 - 2 consultations du planner par tâche au plus.
 - Toujours une intervention humaine pour : action destructive, push, PR, fusion,

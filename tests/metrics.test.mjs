@@ -30,7 +30,7 @@ const agentCall = (over = {}) => ({
   hook_event_name: 'PostToolUse',
   session_id: 'S1',
   tool_name: 'Agent',
-  tool_input: { prompt: 'Réalise T2…', description: 'implementer T2 #1', subagent_type: 'implementer', ...over.input },
+  tool_input: { prompt: 'Réalise T2…', description: 'cc-implementer T2 #1', subagent_type: 'cc-implementer', ...over.input },
   tool_response: {
     status: 'completed', content: [{ type: 'text', text: '…' }],
     totalDurationMs: 84213, totalToolUseCount: 23, totalTokens: 51234,
@@ -40,9 +40,9 @@ const agentCall = (over = {}) => ({
 });
 
 test('parseTask : tâche lue dans la description « <agent> <Tn|spec|plan|consult|split> #<k> »', () => {
-  assert.equal(parseTask('implementer T2 #1'), 'T2');
-  assert.equal(parseTask('planner spec+plan #1'), 'spec+plan');
-  assert.equal(parseTask('implementer T3.1 #2'), 'T3.1');
+  assert.equal(parseTask('cc-implementer T2 #1'), 'T2');
+  assert.equal(parseTask('cc-planner spec+plan #1'), 'spec+plan');
+  assert.equal(parseTask('cc-implementer T3.1 #2'), 'T3.1');
   assert.equal(parseTask('Relire le diff'), null);
   assert.equal(parseTask(undefined), null);
 });
@@ -57,7 +57,7 @@ test('record-metrics : une ligne correcte depuis un vrai tool_response, modèle 
   const [line] = readLines(dir);
   assert.ok(!Number.isNaN(Date.parse(line.at)));
   assert.deepEqual({ ...line, at: undefined }, {
-    at: undefined, kind: 'agent', agent: 'implementer', task: 'T2', model: 'sonnet',
+    at: undefined, kind: 'agent', agent: 'cc-implementer', task: 'T2', model: 'sonnet',
     durationMs: 84213, toolUses: 23, tokens: 51234,
   });
   assert.ok(!existsSync(join(root, '.agent-runs/old/metrics.jsonl')));
@@ -91,11 +91,11 @@ test('record-metrics : rien sans run actif de la session, ni pour un agent hors 
 test('record-metrics et metrics : les développeurs spécialisés et documentation sont mesurés', () => {
   const root = templateCopy();
   const dir = makeRun(root, 'r1', { status: 'executing', sessionId: 'S1' });
-  for (const agent of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+  for (const agent of ['cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation']) {
     runHook(root, 'record-metrics.mjs', agentCall({ input: { subagent_type: agent, description: `${agent} T2 #1` } }));
   }
   const lines = readLines(dir);
-  assert.deepEqual(lines.map((l) => l.agent), ['implementer-backend', 'implementer-frontend', 'documentation']);
+  assert.deepEqual(lines.map((l) => l.agent), ['cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation']);
   assert.deepEqual(lines.map((l) => l.model), ['sonnet', 'sonnet', 'sonnet']);
   assert.equal(summarize({ id: 'r1', createdAt: '2026-10-18T10:00:00Z' }, lines).byTask.T2.implementerCalls, 3);
 });
@@ -103,18 +103,18 @@ test('record-metrics et metrics : les développeurs spécialisés et documentati
 test('metrics : agrège durée murale, tours, agents et tâches', () => {
   const state = { id: 'r1', createdAt: '2026-10-18T10:00:00Z' };
   const lines = [
-    { at: '2026-10-18T10:05:00Z', kind: 'agent', agent: 'planner', task: 'spec+plan', model: 'opus', durationMs: 60000, toolUses: 10, tokens: 1000 },
-    { at: '2026-10-18T10:10:00Z', kind: 'agent', agent: 'implementer', task: 'T1', model: 'sonnet', durationMs: 120000, toolUses: 20, tokens: 3000 },
-    { at: '2026-10-18T10:11:00Z', kind: 'deliverable_rejected', agent: 'implementer' },
-    { at: '2026-10-18T10:20:00Z', kind: 'agent', agent: 'implementer', task: 'T1', model: 'opus', durationMs: 30000, toolUses: 5, tokens: 500 },
+    { at: '2026-10-18T10:05:00Z', kind: 'agent', agent: 'cc-planner', task: 'spec+plan', model: 'opus', durationMs: 60000, toolUses: 10, tokens: 1000 },
+    { at: '2026-10-18T10:10:00Z', kind: 'agent', agent: 'cc-implementer', task: 'T1', model: 'sonnet', durationMs: 120000, toolUses: 20, tokens: 3000 },
+    { at: '2026-10-18T10:11:00Z', kind: 'deliverable_rejected', agent: 'cc-implementer' },
+    { at: '2026-10-18T10:20:00Z', kind: 'agent', agent: 'cc-implementer', task: 'T1', model: 'opus', durationMs: 30000, toolUses: 5, tokens: 500 },
     { at: '2026-10-18T10:25:00Z', kind: 'turn' },
     { at: '2026-10-18T10:30:00Z', kind: 'turn' },
   ];
   const s = summarize(state, lines);
   assert.equal(s.wallMs, 30 * 60000);
   assert.equal(s.turns, 2);
-  assert.deepEqual(s.byAgent.implementer, { calls: 2, durationMs: 150000, toolUses: 25, tokens: 3500, rejections: 1 });
-  assert.deepEqual(s.byAgent.planner, { calls: 1, durationMs: 60000, toolUses: 10, tokens: 1000, rejections: 0 });
+  assert.deepEqual(s.byAgent['cc-implementer'], { calls: 2, durationMs: 150000, toolUses: 25, tokens: 3500, rejections: 1 });
+  assert.deepEqual(s.byAgent['cc-planner'], { calls: 1, durationMs: 60000, toolUses: 10, tokens: 1000, rejections: 0 });
   assert.deepEqual(s.byTask.T1, { implementerCalls: 2, models: ['sonnet', 'opus'] });
   assert.deepEqual(summarize(state, []).turns, 0);
 });
@@ -123,15 +123,15 @@ test('metrics.mjs (CLI) : texte, --json, et erreur sur run introuvable', () => {
   const root = templateCopy();
   const dir = makeRun(root, 'r1', { status: 'executing' });
   writeFile(join(dir, 'metrics.jsonl'), [
-    JSON.stringify({ at: '2026-10-18T10:10:00Z', kind: 'agent', agent: 'implementer', task: 'T1', model: 'sonnet', durationMs: 1000, toolUses: 2, tokens: 30 }),
+    JSON.stringify({ at: '2026-10-18T10:10:00Z', kind: 'agent', agent: 'cc-implementer', task: 'T1', model: 'sonnet', durationMs: 1000, toolUses: 2, tokens: 30 }),
     'ligne abîmée',
     '',
   ].join('\n'));
   const script = join(root, '.claude/skills/team/scripts/metrics.mjs');
   const text = spawnSync(process.execPath, [script, dir], { encoding: 'utf8' });
   assert.equal(text.status, 0, text.stderr);
-  assert.match(text.stdout, /implementer/);
+  assert.match(text.stdout, /cc-implementer/);
   const json = spawnSync(process.execPath, [script, dir, '--json'], { encoding: 'utf8' });
-  assert.equal(JSON.parse(json.stdout).byAgent.implementer.calls, 1);
+  assert.equal(JSON.parse(json.stdout).byAgent['cc-implementer'].calls, 1);
   assert.equal(spawnSync(process.execPath, [script, join(root, '.agent-runs/absent')], { encoding: 'utf8' }).status, 2);
 });

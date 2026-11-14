@@ -197,10 +197,10 @@ function simulateRun(dir, kind) {
       writeIn(dir, `.agent-runs/${id}/review-${task.id}-1.json`, { verdict: 'approve' });
     }
     writeIn(dir, `.agent-runs/${id}/metrics.jsonl`, [
-      { at: 'x', kind: 'agent', agent: 'implementer', task: 'T1', model: 'sonnet', durationMs: 1000, toolUses: 3, tokens: 500 },
-      { at: 'x', kind: 'agent', agent: 'implementer', task: 'T2', model: 'sonnet', durationMs: 2000, toolUses: 3, tokens: 700 },
+      { at: 'x', kind: 'agent', agent: 'cc-implementer', task: 'T1', model: 'sonnet', durationMs: 1000, toolUses: 3, tokens: 500 },
+      { at: 'x', kind: 'agent', agent: 'cc-implementer', task: 'T2', model: 'sonnet', durationMs: 2000, toolUses: 3, tokens: 700 },
       { at: 'x', kind: 'turn' },
-      { at: 'x', kind: 'deliverable_rejected', agent: 'planner' },
+      { at: 'x', kind: 'deliverable_rejected', agent: 'cc-planner' },
     ].map((l) => JSON.stringify(l)).join('\n'));
   }
   writeIn(dir, `.agent-runs/${id}/state.json`, state);
@@ -256,7 +256,7 @@ test('collectRun : run le plus récent, git et fichiers du run, champs v2 tolér
   assert.equal(run.git.pushed, false);
   assert.ok(run.runFiles.includes('review-T1-1.json'));
   assert.equal(run.claude.total_cost_usd, 0.5);
-  assert.deepEqual(run.metrics.agents.implementer, { calls: 2, durationMs: 3000, tokens: 1200 });
+  assert.deepEqual(run.metrics.agents['cc-implementer'], { calls: 2, durationMs: 3000, tokens: 1200 });
   assert.equal(run.metrics.turns, 1);
   assert.equal(run.metrics.rejected, 1);
   assert.equal(run.team.initialized, true);

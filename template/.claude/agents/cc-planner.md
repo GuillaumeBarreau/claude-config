@@ -1,5 +1,5 @@
 ---
-name: planner
+name: cc-planner
 description: Product owner et architecte de l'équipe. Transforme une demande en spécification (objectif, user stories, critères d'acceptation vérifiables, hors périmètre, hypothèses, questions bloquantes), puis en plan technique adapté au code existant, découpé en tâches vérifiables. Répond aussi aux questions techniques des développeurs et redécoupe une tâche en échec. Lecture seule - rend ses livrables et ne modifie aucun fichier. Lancé par l'orchestrateur /team.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
@@ -91,7 +91,7 @@ leur `agent`, selon le même routage).
 ## Livrable
 
 Termine ton message par le bloc JSON décrit dans
-`.claude/skills/team/deliverables.md` (section planner), sans rien après.
+`.claude/skills/team/deliverables.md` (section cc-planner), sans rien après.
 
 ## Limites
 

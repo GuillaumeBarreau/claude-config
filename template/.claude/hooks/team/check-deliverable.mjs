@@ -4,15 +4,19 @@
 // - Invalide : l'agent est renvoyé au travail avec les erreurs (decision: block), une
 //   seule fois (stop_hook_active) ; au second échec il s'arrête et le rejet est mesuré.
 // - Valide, dans un run existant : copie dans deliverables/<NNN>-<agent>[-<tâche>].json
-//   et, pour code-reviewer, dans review-<tâche>-<k>.json (review-<k>.json sans tâche).
-// Ce hook n'écrit jamais state.json : c'est le rôle de l'orchestrateur.
+//   et, pour cc-code-reviewer, dans review-<tâche>-<k>.json (review-<k>.json sans tâche).
+// - Valide, agent de revue de PR (REVIEW_AGENTS) : copie dans
+//   .agent-reviews/<review>/rounds/<round>/deliverables/<NNN>-<agent>.json si ce round
+//   existe (review.json présent, round ouvert par pr-fetch).
+// Ce hook n'écrit jamais state.json ni review.json : c'est le rôle de l'orchestrateur
+// et de findings.mjs.
 // Entrée illisible : on laisse l'agent s'arrêter (un Stop qui bloque boucle).
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { SCHEMA_HINT, extractDeliverable, validateDeliverable } from '../../skills/team/scripts/deliverable.mjs';
+import { REVIEW_AGENTS, SCHEMA_HINT, extractDeliverable, validateDeliverable } from '../../skills/team/scripts/deliverable.mjs';
 import { readPayload } from './lib.mjs';
 import { TEAM_AGENTS, appendMetric, findSessionRun, projectDir } from './record-metrics.mjs';
 
@@ -57,13 +61,29 @@ export function recordDeliverable(runDir, agent, data) {
   mkdirSync(deliverables, { recursive: true });
   const n = String(nextIndex(deliverables, /^(\d+)-/)).padStart(3, '0');
   const written = [join(deliverables, `${n}-${agent}${task ? `-${task}` : ''}.json`)];
-  if (agent === 'code-reviewer') {
+  if (agent === 'cc-code-reviewer') {
     const prefix = task ? `review-${task}-` : 'review-';
     const pattern = new RegExp(`^${prefix.replace(/[.]/g, '\\.')}(\\d+)\\.json$`);
     written.push(join(runDir, `${prefix}${nextIndex(runDir, pattern)}.json`));
   }
   for (const file of written) writeFileSync(file, content);
   return written;
+}
+
+/**
+ * Enregistre un livrable valide d'un agent de revue dans le round de sa revue.
+ * Renvoie le fichier écrit, ou null si la revue ou le round n'existe pas.
+ */
+export function recordReviewDeliverable(root, agent, data) {
+  const reviewDir = join(root, '.agent-reviews', data.review);
+  const round = join(reviewDir, 'rounds', String(data.round));
+  if (!existsSync(join(reviewDir, 'review.json')) || !existsSync(round)) return null;
+  const deliverables = join(round, 'deliverables');
+  mkdirSync(deliverables, { recursive: true });
+  const n = String(nextIndex(deliverables, /^(\d+)-/)).padStart(3, '0');
+  const file = join(deliverables, `${n}-${agent}.json`);
+  writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  return file;
 }
 
 function main() {
@@ -98,6 +118,12 @@ function main() {
       decision: 'block',
       reason: `Livrable ${agent} invalide :\n${list}\n${SCHEMA_HINT}`,
     }));
+    return;
+  }
+  if (REVIEW_AGENTS.includes(agent)) {
+    if (!recordReviewDeliverable(root, agent, data)) {
+      process.stderr.write(`[check-deliverable] revue « ${data.review} » (round ${data.round}) introuvable : livrable non enregistré\n`);
+    }
     return;
   }
   if (runId && !runDir) {

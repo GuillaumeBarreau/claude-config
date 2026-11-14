@@ -8,11 +8,11 @@ consigne dans le workflow, une skill, ou rien.
 
 ## Ajouter un agent
 
-1. Crée `template/.claude/agents/<nom>.md` :
+1. Crée `template/.claude/agents/cc-<nom>.md` :
 
    ```markdown
    ---
-   name: <nom>
+   name: cc-<nom>
    description: <ce qu'il fait et quand l'utiliser — c'est ce que lit l'orchestrateur>
    tools: Read, Grep, Glob, Bash          # le strict nécessaire, jamais *
    disallowedTools: Edit, Write, NotebookEdit   # si lecture seule
@@ -36,8 +36,8 @@ consigne dans le workflow, une skill, ou rien.
    `hooks/team/record-metrics.mjs`. Sans schéma, le hook `check-deliverable` ne le
    contrôle pas et ses appels ne sont pas mesurés.
 3. Déclare-le dans `template/.claude/team.json` (`agents`).
-   **Agent développeur** (réalise une tâche du plan, comme `implementer-backend`) :
-   ajoute-le à `DEVELOPERS` dans `deliverable.mjs` (schéma implementer, mesures,
+   **Agent développeur** (réalise une tâche du plan, comme `cc-implementer-backend`) :
+   ajoute-le à `DEVELOPERS` dans `deliverable.mjs` (schéma `cc-implementer`, mesures,
    `check-plan`) et à `GUARDED_AGENTS` dans `hooks/team/guard-files.mjs` (refus
    d'écrire dans `.claude/` et `.agent-runs/` ; un test vérifie que les deux listes
    concordent), précharge `team-rules` et `team-implementer` (procédure commune, à ne
@@ -49,8 +49,11 @@ consigne dans le workflow, une skill, ou rien.
 5. `npm run check`, puis ajoute une entrée au `CHANGELOG.md`.
 6. Réinstalle dans un projet de test et fais un run réel avant de le généraliser.
 
-Choisir un nom qui n'existe pas déjà dans les projets cibles : un agent du projet
-portant le même nom serait signalé en conflit à l'installation.
+**Préfixe `cc-` obligatoire** (ADR 0012) : tout agent du template s'appelle `cc-<nom>`
+(fichier et `name:`). Un agent du projet qui porte un nom de rôle courant
+(`code-reviewer`, `planner`…) ne doit ni entrer en conflit à l'installation ni être
+soumis à nos hooks (`check-deliverable` exigerait un livrable JSON qu'il ne produit
+pas). `validate.mjs` refuse un agent géré par claude-config sans ce préfixe.
 
 ## Modifier le workflow
 

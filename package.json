@@ -1,8 +1,8 @@
 {
   "name": "claude-config",
-  "version": "0.8.0",
+  "version": "0.11.0",
   "private": true,
-  "description": "Équipe d'agents Claude Code (orchestrateur, planner, implementers généraliste et spécialisés, documentation, code-reviewer) et garde-fous, installable dans n'importe quel projet",
+  "description": "Équipe d'agents Claude Code préfixés cc- (orchestrateur, cc-planner, implementers généraliste et spécialisés, cc-documentation, cc-code-reviewer), revue de PR GitHub avec triage et publication après accord, et garde-fous, installable dans n'importe quel projet",
   "type": "module",
   "engines": {
     "node": ">=20"

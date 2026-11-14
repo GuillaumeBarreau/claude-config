@@ -20,8 +20,8 @@ test('le template du dépôt est valide', () => {
 });
 
 test('frontmatter : scalaires, guillemets et listes', () => {
-  const fm = parseFrontmatter('---\nname: "planner"\ntools: Read, Grep\nskills:\n  - team-rules\n  - autre\n---\ncorps');
-  assert.equal(fm.data.name, 'planner');
+  const fm = parseFrontmatter('---\nname: "cc-planner"\ntools: Read, Grep\nskills:\n  - team-rules\n  - autre\n---\ncorps');
+  assert.equal(fm.data.name, 'cc-planner');
   assert.deepEqual(splitList(fm.data.tools), ['Read', 'Grep']);
   assert.deepEqual(fm.data.skills, ['team-rules', 'autre']);
   assert.equal(fm.body, 'corps');
@@ -35,31 +35,31 @@ test('splitList garde les parenthèses intactes', () => {
 
 test('agent sans model : erreur', () => {
   const root = templateCopy();
-  replaceIn(join(root, '.claude/agents/planner.md'), 'model: opus\n', '');
-  assert.match(errorsOf(root), /planner\.md : clé obligatoire « model »/);
+  replaceIn(join(root, '.claude/agents/cc-planner.md'), 'model: opus\n', '');
+  assert.match(errorsOf(root), /cc-planner\.md : clé obligatoire « model »/);
 });
 
 test('effort inconnu : erreur', () => {
   const root = templateCopy();
-  replaceIn(join(root, '.claude/agents/planner.md'), 'effort: high', 'effort: extreme');
+  replaceIn(join(root, '.claude/agents/cc-planner.md'), 'effort: high', 'effort: extreme');
   assert.match(errorsOf(root), /effort « extreme » inconnu/);
 });
 
 test('outils en joker : erreur', () => {
   const root = templateCopy();
-  replaceIn(join(root, '.claude/agents/planner.md'), 'tools: Read, Grep, Glob, Bash', 'tools: *');
+  replaceIn(join(root, '.claude/agents/cc-planner.md'), 'tools: Read, Grep, Glob, Bash', 'tools: *');
   assert.match(errorsOf(root), /tools « \* »/);
 });
 
 test('name différent du nom de fichier : erreur', () => {
   const root = templateCopy();
-  replaceIn(join(root, '.claude/agents/planner.md'), 'name: planner', 'name: architect');
-  assert.match(errorsOf(root), /name « architect » ≠ nom du fichier/);
+  replaceIn(join(root, '.claude/agents/cc-planner.md'), 'name: cc-planner', 'name: cc-architect');
+  assert.match(errorsOf(root), /name « cc-architect » ≠ nom du fichier/);
 });
 
 test('skill préchargée absente : erreur', () => {
   const root = templateCopy();
-  replaceIn(join(root, '.claude/agents/planner.md'), '  - team-rules', '  - inexistante');
+  replaceIn(join(root, '.claude/agents/cc-planner.md'), '  - team-rules', '  - inexistante');
   assert.match(errorsOf(root), /skill préchargée « inexistante » introuvable/);
 });
 
@@ -118,9 +118,9 @@ test('frontmatter : liste en ligne et texte replié', () => {
 
 test('description repliée vide : erreur', () => {
   const root = templateCopy();
-  const path = join(root, '.claude/agents/planner.md');
+  const path = join(root, '.claude/agents/cc-planner.md');
   writeFileSync(path, readFileSync(path, 'utf8').replace(/^description: .*$/m, 'description: >-'));
-  assert.match(errorsOf(root), /planner\.md : clé obligatoire « description »/);
+  assert.match(errorsOf(root), /cc-planner\.md : clé obligatoire « description »/);
 });
 
 test('un lien dans un bloc de code n\'est pas vérifié', () => {
@@ -140,17 +140,17 @@ test('projet installé : un agent propre au projet minimal ne fait pas échouer 
   assert.match(warnings.join('\n'), /ma-skill\/SKILL\.md : pas de frontmatter/);
 
   // Un agent installé par claude-config reste tenu aux règles strictes.
-  replaceIn(join(projectDir, '.claude/agents/planner.md'), 'effort: high\n', '');
-  assert.match(errorsOf(projectDir), /planner\.md : clé obligatoire « effort »/);
+  replaceIn(join(projectDir, '.claude/agents/cc-planner.md'), 'effort: high\n', '');
+  assert.match(errorsOf(projectDir), /cc-planner\.md : clé obligatoire « effort »/);
 });
 
 test('corps d\'agent trop long : avertissement seulement', () => {
   const root = templateCopy();
-  const path = join(root, '.claude/agents/planner.md');
+  const path = join(root, '.claude/agents/cc-planner.md');
   writeFileSync(path, readFileSync(path, 'utf8') + '\nligne'.repeat(120));
   const { errors, warnings } = validate(root);
   assert.deepEqual(errors, []);
-  assert.match(warnings.join('\n'), /planner\.md : corps de \d+ lignes/);
+  assert.match(warnings.join('\n'), /cc-planner\.md : corps de \d+ lignes/);
 });
 
 test('settings.json : un hook dont le script n\'existe pas est une erreur', () => {
@@ -205,6 +205,42 @@ test('team.json : le modèle déclare les valeurs par défaut des clés facultat
   assert.deepEqual(Object.keys(config.lessons).sort(), ['enabled', 'maxEntries']);
   assert.equal(config.backlog.draftPr, false);
   assert.deepEqual(config.parallel, { enabled: false });
+  assert.deepEqual(config.review, {
+    language: 'fr', event: 'COMMENT', maxInlineCould: 5, architectureMinLines: 150,
+    axes: { frontend: [], backend: [] }, batch: { maxPrs: 3 },
+  });
+});
+
+test('team.json : section review — chaque valeur mal typée est signalée', () => {
+  const errors = errorsOf(withTeam({ review: {
+    language: '', event: 'MERGE', maxInlineCould: 0, architectureMinLines: 1.5,
+    axes: { frontend: 'ui/**', backend: ['server/**', ''], mobile: ['ios/**'] }, batch: { maxPrs: -1 },
+  } }));
+  for (const re of [
+    /review\.language : doit être un texte non vide/,
+    /review\.event : « MERGE » inconnu \(COMMENT, APPROVE, REQUEST_CHANGES\)/,
+    /review\.maxInlineCould : doit être un entier > 0/,
+    /review\.architectureMinLines : doit être un entier > 0/,
+    /review\.axes\.frontend : doit être une liste de motifs/,
+    /review\.axes\.backend : doit être une liste de motifs/,
+    /review\.axes\.mobile : axe inconnu \(frontend, backend\)/,
+    /review\.batch\.maxPrs : doit être un entier > 0/,
+  ]) {
+    assert.match(errors, re);
+  }
+  const shapes = errorsOf(withTeam({ review: { axes: ['ui/**'], batch: 3 } }));
+  assert.match(shapes, /review\.axes : doit être un objet/);
+  assert.match(shapes, /review\.batch : doit être un objet/);
+  assert.match(errorsOf(withTeam({ review: 'fr' })), /team\.json : review : doit être un objet/);
+});
+
+test('team.json : section review valide ou absente', () => {
+  for (const review of [
+    undefined, {}, { event: 'APPROVE' }, { event: 'REQUEST_CHANGES', maxInlineCould: 1 },
+    { axes: { frontend: ['ui/**', 'shared/**'], backend: [] } }, { axes: {}, batch: {} },
+  ]) {
+    assert.doesNotMatch(errorsOf(withTeam({ review })), /review/, JSON.stringify(review));
+  }
 });
 
 test('team.json : chaque clé facultative mal typée est signalée', () => {
@@ -265,11 +301,52 @@ test('team.json : escalationModel accepte un identifiant claude-*', () => {
   assert.deepEqual(validate(withTeam({ escalationModel: 'claude-opus-5-5' })).errors, []);
 });
 
-test('team.json : implementer ne peut pas être désactivé (agent par défaut et de repli)', () => {
+test('team.json : cc-implementer ne peut pas être désactivé (agent par défaut et de repli)', () => {
   const root = templateCopy();
   const path = join(root, '.claude/team.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  config.agents.implementer = false;
+  config.agents['cc-implementer'] = false;
   writeFileSync(path, JSON.stringify(config));
-  assert.match(errorsOf(root), /team\.json : agent « implementer » ne peut pas être désactivé/);
+  assert.match(errorsOf(root), /team\.json : agent « cc-implementer » ne peut pas être désactivé/);
+});
+
+// --- Préfixe cc- des agents gérés par claude-config (ADR 0012) ---
+
+const AGENT_FILE = '---\nname: NAME\ndescription: Agent\ntools: Read\nmodel: sonnet\neffort: low\n---\nCorps\n';
+
+test('agent géré par claude-config sans préfixe cc- : erreur (template)', () => {
+  const root = templateCopy();
+  const from = join(root, '.claude/agents/cc-planner.md');
+  writeFileSync(join(root, '.claude/agents/planner.md'), readFileSync(from, 'utf8').replace('name: cc-planner', 'name: planner'));
+  rmSync(from);
+  assert.match(errorsOf(root), /agents\/planner\.md : nom « planner » sans préfixe « cc- »/);
+});
+
+test('projet installé : le préfixe cc- n\'est exigé que des agents du manifeste', () => {
+  const projectDir = tempDir('projet-');
+  install({ templateDir: TEMPLATE_CLAUDE, projectDir, version: 'test' });
+  writeFile(join(projectDir, '.claude/agents/code-reviewer.md'), AGENT_FILE.replace('NAME', 'code-reviewer'));
+  assert.doesNotMatch(errorsOf(projectDir), /préfixe/);
+
+  const manifestPath = join(projectDir, '.claude/claude-config.manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.files['agents/legacy.md'] = 'empreinte';
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  writeFile(join(projectDir, '.claude/agents/legacy.md'), AGENT_FILE.replace('NAME', 'legacy'));
+  const errors = errorsOf(projectDir);
+  assert.match(errors, /agents\/legacy\.md : nom « legacy » sans préfixe « cc- »/);
+  assert.doesNotMatch(errors, /code-reviewer\.md : nom/);
+});
+
+test('team.json : une ancienne clé agents.<nom> est signalée avec le nouveau nom', () => {
+  const root = templateCopy();
+  const path = join(root, '.claude/team.json');
+  const config = JSON.parse(readFileSync(path, 'utf8'));
+  config.agents.implementer = true;
+  config.agents['pr-verifier'] = false;
+  writeFileSync(path, JSON.stringify(config));
+  const errors = errorsOf(root);
+  assert.match(errors, /team\.json : agents\.implementer : ancien nom, renomme la clé en « cc-implementer »/);
+  assert.match(errors, /team\.json : agents\.pr-verifier : ancien nom, renomme la clé en « cc-pr-verifier »/);
+  assert.doesNotMatch(errors, /agent « implementer » activé mais/);
 });

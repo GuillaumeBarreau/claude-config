@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { checkState, dependencyErrors, isPlanTask, planDigest } from './check-state.mjs';
-import { DEVELOPERS } from './deliverable.mjs';
+import { DEFAULT_DEVELOPER, DEVELOPERS, canonicalAgent } from './deliverable.mjs';
 import { sensitiveFiles, teamSensitivePaths } from './sensitive.mjs';
 
 const CLAUDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -26,11 +26,11 @@ const readJson = (file) => JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/,
 const list = (v) => (Array.isArray(v) ? v : []);
 const filesOf = (t) => [...list(t.files), ...list(t.newFiles)];
 
-/** Agents désactivés dans <projet>/.claude/team.json (agents.<nom>: false). */
+/** Agents désactivés dans <projet>/.claude/team.json (agents.<nom>: false), noms canoniques. */
 function disabledAgents(projectDir) {
   try {
     const team = readJson(join(projectDir, '.claude', 'team.json'));
-    return Object.entries(team.agents ?? {}).filter(([, on]) => on === false).map(([name]) => name);
+    return Object.entries(team.agents ?? {}).filter(([, on]) => on === false).map(([name]) => canonicalAgent(name));
   } catch {
     return [];
   }
@@ -80,8 +80,9 @@ function pathProblem(path) {
   return null;
 }
 
-const DEFAULTS = { newFiles: [], agent: 'implementer' };
-const normalized = (task, key) => JSON.stringify(task[key] ?? DEFAULTS[key]);
+const DEFAULTS = { newFiles: [] };
+const agentOf = (task) => canonicalAgent(task.agent ?? DEFAULT_DEVELOPER);
+const normalized = (task, key) => JSON.stringify(key === 'agent' ? agentOf(task) : (task[key] ?? DEFAULTS[key]));
 
 /**
  * dependsOn de plan.md et de state.json concordent-ils ? Une dépendance vers une tâche
@@ -187,10 +188,11 @@ export function checkPlan(runDir, { projectDir = dirname(CLAUDE_DIR), sensitiveP
       errors.push(`${t.id} : aucune entrée dans files ni newFiles`);
     }
   }
-  // Agent de chaque tâche : un développeur connu et activé (absent = implementer).
+  // Agent de chaque tâche : un développeur connu et activé (absent = cc-implementer ;
+  // un nom d'avant 0.10, sans préfixe, est lu comme son équivalent préfixé).
   const disabled = disabledAgents(projectDir);
   for (const t of tasks) {
-    const agent = t.agent ?? 'implementer';
+    const agent = agentOf(t);
     if (!DEVELOPERS.includes(agent)) errors.push(`${t.id} : agent « ${agent} » inconnu (${DEVELOPERS.join(', ')})`);
     else if (disabled.includes(agent)) errors.push(`${t.id} : agent « ${agent} » désactivé dans team.json (agents) — choisis un agent activé`);
     else if (!existsSync(join(projectDir, '.claude', 'agents', `${agent}.md`))) {

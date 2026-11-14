@@ -1,6 +1,6 @@
 ---
 name: conventions-frontend
-description: Conventions front-end propres à ce projet (framework, structure, commandes, style, design system, tests, fichiers modèles). Préchargée par l'agent implementer-frontend. Appartient au projet - générée et tenue à jour par /team-init, jamais remplacée par une réinstallation.
+description: Conventions front-end propres à ce projet (framework, structure, commandes, style, design system, tests, fichiers modèles). Préchargée par l'agent cc-implementer-frontend. Appartient au projet - générée et tenue à jour par /team-init, jamais remplacée par une réinstallation.
 user-invocable: false
 ---
 

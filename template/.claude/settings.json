@@ -16,7 +16,14 @@
       "Bash(node .claude/skills/team/scripts/lessons.mjs *)",
       "Bash(node .claude/skills/team/scripts/plan-waves.mjs *)",
       "Bash(node .claude/skills/team-next/scripts/next-issue.mjs *)",
-      "Bash(node .claude/skills/team-audit/scripts/create-issues.mjs *)"
+      "Bash(node .claude/skills/team-audit/scripts/create-issues.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/pr-list.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/pr-fetch.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/findings.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/decisions.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/stats.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/serve.mjs *)",
+      "Bash(node .claude/skills/team-review/scripts/source.mjs *)"
     ]
   },
   "hooks": {
@@ -66,7 +73,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "planner|implementer|implementer-backend|implementer-frontend|documentation|expert|code-reviewer|analyste",
+        "matcher": "cc-planner|cc-implementer|cc-implementer-backend|cc-implementer-frontend|cc-documentation|cc-expert|cc-code-reviewer|cc-analyste|cc-pr-reviewer-frontend|cc-pr-reviewer-backend|cc-pr-reviewer-architecture|cc-pr-verifier",
         "hooks": [
           {
             "type": "command",

@@ -1,6 +1,6 @@
 ---
-name: implementer-backend
-description: Développeur back-end de l'équipe. Réalise UNE tâche d'un plan validé dont tous les fichiers sont côté serveur (API, services, données, tâches de fond) avec ses tests, ou corrige les constats, commentaires de PR et contrôles en échec de cette tâche. Ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent implementer-backend.
+name: cc-implementer-backend
+description: Développeur back-end de l'équipe. Réalise UNE tâche d'un plan validé dont tous les fichiers sont côté serveur (API, services, données, tâches de fond) avec ses tests, ou corrige les constats, commentaires de PR et contrôles en échec de cette tâche. Ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent cc-implementer-backend.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 effort: high

@@ -9,14 +9,18 @@
   "maxAttempts": 2,
   "maxClarificationRounds": 2,
   "agents": {
-    "planner": true,
-    "implementer": true,
-    "implementer-backend": true,
-    "implementer-frontend": true,
-    "documentation": true,
-    "code-reviewer": true,
-    "expert": true,
-    "analyste": true
+    "cc-planner": true,
+    "cc-implementer": true,
+    "cc-implementer-backend": true,
+    "cc-implementer-frontend": true,
+    "cc-documentation": true,
+    "cc-code-reviewer": true,
+    "cc-expert": true,
+    "cc-analyste": true,
+    "cc-pr-reviewer-frontend": true,
+    "cc-pr-reviewer-backend": true,
+    "cc-pr-reviewer-architecture": true,
+    "cc-pr-verifier": true
   },
   "pullRequest": {
     "draft": true,
@@ -50,6 +54,19 @@
   },
   "parallel": {
     "enabled": false
+  },
+  "review": {
+    "language": "fr",
+    "event": "COMMENT",
+    "maxInlineCould": 5,
+    "architectureMinLines": 150,
+    "axes": {
+      "frontend": [],
+      "backend": []
+    },
+    "batch": {
+      "maxPrs": 3
+    }
   },
   "checks": []
 }

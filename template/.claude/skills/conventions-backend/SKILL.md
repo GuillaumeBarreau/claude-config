@@ -1,6 +1,6 @@
 ---
 name: conventions-backend
-description: Conventions back-end propres à ce projet (framework, structure, commandes, style, tests, fichiers modèles). Préchargée par l'agent implementer-backend. Appartient au projet - générée et tenue à jour par /team-init, jamais remplacée par une réinstallation.
+description: Conventions back-end propres à ce projet (framework, structure, commandes, style, tests, fichiers modèles). Préchargée par l'agent cc-implementer-backend. Appartient au projet - générée et tenue à jour par /team-init, jamais remplacée par une réinstallation.
 user-invocable: false
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: code-reviewer
+name: cc-code-reviewer
 description: Relit un changement de code (bugs, régressions, sécurité, tests, conventions) et, dans un run /team, vérifie chaque critère d'acceptation. À utiliser après une modification, avant un commit ou une PR, ou pour relire un diff, une branche, une PR ou des fichiers. Lecture seule - rend un verdict, ne modifie jamais rien.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
@@ -88,7 +88,7 @@ Quand la description de ta mission contient `--qa` :
 ## Rapport
 
 Ton rapport **est** le bloc JSON décrit dans `.claude/skills/team/deliverables.md`
-(section code-reviewer), qui **termine** ton message, sans rien après. Avant lui, en
+(section cc-code-reviewer), qui **termine** ton message, sans rien après. Avant lui, en
 prose courte : ce que tu as relu et ce que tu n'as pas pu vérifier.
 
 - `verdict` : `approve`, `changes_requested` (au moins un constat `critical` ou

@@ -1,0 +1,29 @@
+diff --git a/src/export.js b/src/export.js
+index 1111111..2222222 100644
+--- a/src/export.js
++++ b/src/export.js
+@@ -9,6 +9,8 @@ export function header(columns) {
+ // Lignes du fichier CSV.
+ export function toCsv(rows) {
+-  return rows.map((r) => Object.values(r).join(';'));
++  if (!rows) return '';
++  const lines = rows.map((r) => Object.values(r).join(','));
++  return lines.join('\n');
+ }
+ // Nom du fichier.
+ export function filename(date) {
+@@ -30,3 +32,4 @@ export function download(name) {
+   const link = document.createElement('a');
+   link.download = name;
++  link.click();
+ }
+diff --git a/ui/Export.tsx b/ui/Export.tsx
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/ui/Export.tsx
+@@ -0,0 +1,4 @@
++import { download, toCsv } from '../../src/export.js';
++export function Export({ rows }) {
++  return <button onClick={() => download(toCsv(rows))}>Exporter</button>;
++}

@@ -9,9 +9,9 @@
   "maxAttempts": 2,
   "maxClarificationRounds": 2,
   "agents": {
-    "planner": true,
-    "implementer": true,
-    "code-reviewer": true
+    "cc-planner": true,
+    "cc-implementer": true,
+    "cc-code-reviewer": true
   },
   "pullRequest": {
     "draft": true,

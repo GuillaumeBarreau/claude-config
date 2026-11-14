@@ -12,8 +12,20 @@ import { pathToFileURL } from 'node:url';
 
 // Développeurs : réalisent une tâche du plan (task.agent), même livrable que l'implementer,
 // mêmes interdits (guard-files). Source unique des noms d'agents de l'équipe.
-export const DEVELOPERS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'expert'];
-export const AGENTS = ['planner', ...DEVELOPERS, 'code-reviewer', 'analyste'];
+export const DEVELOPERS = ['cc-implementer', 'cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation', 'cc-expert'];
+// Module de revue de PR (/team-review) : trois relecteurs par axe et un vérificateur. Leurs
+// livrables vont dans .agent-reviews/<review>/rounds/<round>/deliverables/.
+export const PR_REVIEWERS = ['cc-pr-reviewer-frontend', 'cc-pr-reviewer-backend', 'cc-pr-reviewer-architecture'];
+export const REVIEW_AGENTS = [...PR_REVIEWERS, 'cc-pr-verifier'];
+export const AGENTS = ['cc-planner', ...DEVELOPERS, 'cc-code-reviewer', 'cc-analyste', ...REVIEW_AGENTS];
+// Préfixe des agents gérés par claude-config (ADR 0012) : un agent propre au projet qui
+// porterait le même nom de rôle (code-reviewer…) n'est plus confondu avec les nôtres.
+export const AGENT_PREFIX = 'cc-';
+export const DEFAULT_DEVELOPER = 'cc-implementer';
+// Noms d'avant 0.10 (sans préfixe) : acceptés en lecture dans les runs existants
+// (state.json, plan.md, team.json) ; install.mjs migre les clés de team.json.
+export const LEGACY_AGENTS = Object.fromEntries(AGENTS.map((name) => [name.slice(AGENT_PREFIX.length), name]));
+export const canonicalAgent = (name) => (typeof name === 'string' && LEGACY_AGENTS[name]) || name;
 const STATUSES = ['ready', 'blocked', 'needs_input'];
 const QUESTION_KINDS = ['technical', 'product'];
 const PLANNER_MODES = ['spec', 'plan', 'spec+plan', 'consult', 'split'];
@@ -25,6 +37,11 @@ const SOURCES = ['review', 'pr-comment', 'ci'];
 export const ANALYSTE_MODES = ['audit', 'targeted'];
 export const ANALYSTE_FOCUSES = ['security', 'debt', 'features', 'performance', 'architecture', 'all'];
 export const FINDING_TYPES = ['security', 'debt', 'features', 'performance', 'architecture'];
+export const REVIEW_AXES = ['frontend', 'backend', 'architecture'];
+export const REVIEW_KINDS = ['defect', 'question'];
+export const REVIEW_PROOFS = ['script', 'read', 'none'];
+export const REVIEW_VERDICTS = ['confirmed', 'downgraded', 'rejected'];
+export const REVIEW_ID = /^pr-\d+$/;
 
 export const SCHEMA_HINT = 'Termine ton message par un bloc ```json conforme à .claude/skills/team/deliverables.md, '
   + 'sans aucun texte après (champs communs : agent, run, status, questions).';
@@ -168,6 +185,70 @@ function checkReviewer(errors, d) {
   }
 }
 
+const isLine = (v) => Number.isInteger(v) && v > 0;
+const textList = (errors, obj, key) => {
+  if (!Array.isArray(obj[key]) || !obj[key].every(isText)) errors.push(`${key} : doit être une liste de textes non vides`);
+};
+
+/** Champs communs aux quatre agents de revue : hors run, rattachés à un dossier de revue. */
+function checkReviewTarget(errors, d) {
+  if (d.run !== null) errors.push('run : doit être null (une revue de PR n\'est pas un run /team)');
+  if (!(typeof d.review === 'string' && REVIEW_ID.test(d.review))) errors.push('review : identifiant du dossier de revue (pr-<numéro>) obligatoire');
+  if (!isLine(d.round)) errors.push('round : entier ≥ 1 obligatoire');
+}
+
+/** Constat d'un relecteur de PR (deliverables.md, § Constat de revue de PR). */
+export function checkReviewFinding(errors, f, where) {
+  texts(errors, f, where, ['id', 'file', 'snippet', 'title', 'problem', 'comment']);
+  oneOf(errors, `${where}.severity`, f.severity, SEVERITIES);
+  oneOf(errors, `${where}.kind`, f.kind, REVIEW_KINDS);
+  oneOf(errors, `${where}.proof`, f.proof, REVIEW_PROOFS);
+  for (const key of ['scenario', 'fix']) {
+    if (f.kind === 'question' ? typeof f[key] !== 'string' : !isText(f[key])) {
+      errors.push(`${where}.${key} : texte non vide obligatoire (texte, même vide, pour une question)`);
+    }
+  }
+  if (f.line !== null && !isLine(f.line)) errors.push(`${where}.line : entier > 0 ou null`);
+  if (f.endLine !== null && !(isLine(f.endLine) && isLine(f.line) && f.endLine >= f.line)) {
+    errors.push(`${where}.endLine : entier ≥ line, ou null (null si line vaut null)`);
+  }
+  if (typeof f.evidence !== 'string' || (f.proof !== 'none' && !f.evidence.trim())) {
+    errors.push(`${where}.evidence : texte obligatoire, vide seulement si proof vaut none`);
+  }
+  if (typeof f.regression !== 'boolean') errors.push(`${where}.regression : true ou false`);
+  if (f.preexisting !== undefined && typeof f.preexisting !== 'boolean') errors.push(`${where}.preexisting : true, false ou absent`);
+  if (f.preexisting === true && f.regression === true) errors.push(`${where}.preexisting : incompatible avec regression (un problème préexistant n'est pas cassé par la PR)`);
+  if (f.suggestion !== undefined && f.suggestion !== null) {
+    if (typeof f.suggestion !== 'string') errors.push(`${where}.suggestion : texte ou null`);
+    else if (!isLine(f.line)) errors.push(`${where}.suggestion : exige line (elle remplace exactement line..endLine)`);
+  }
+}
+
+function checkPrReviewer(errors, d, agentType) {
+  checkReviewTarget(errors, d);
+  const axis = agentType.slice('cc-pr-reviewer-'.length);
+  if (d.axis !== axis) errors.push(`axis : « ${d.axis} » attendu « ${axis} »`);
+  const findings = list(errors, d, 'findings', (f, w) => checkReviewFinding(errors, f, w));
+  const ids = findings.filter(isObject).map((f) => f.id);
+  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) errors.push(`findings : identifiant « ${id} » en double`);
+  textList(errors, d, 'checked');
+  textList(errors, d, 'notReviewed');
+}
+
+function checkPrVerifier(errors, d) {
+  checkReviewTarget(errors, d);
+  list(errors, d, 'verdicts', (v, w) => {
+    texts(errors, v, w, ['finding', 'reason']);
+    oneOf(errors, `${w}.verdict`, v.verdict, REVIEW_VERDICTS);
+    if (v.verdict === 'downgraded') {
+      // Strictement plus basse que l'original : jamais critical ; findings.mjs compare à l'original.
+      if (!['major', 'minor'].includes(v.severity)) errors.push(`${w}.severity : major ou minor obligatoire (strictement plus basse) quand verdict vaut downgraded`);
+    } else if (v.severity !== undefined && v.severity !== null) {
+      errors.push(`${w}.severity : réservé au verdict downgraded`);
+    }
+  });
+}
+
 /** Erreurs du livrable `d` pour l'agent `agentType` ([] = valide). */
 export function validateDeliverable(d, agentType) {
   if (!isObject(d)) return ['le livrable doit être un objet JSON'];
@@ -181,10 +262,12 @@ export function validateDeliverable(d, agentType) {
     texts(errors, q, w, ['text']);
   });
   if (d.status === 'needs_input' && !questions.length) errors.push('questions : au moins une question quand status vaut needs_input');
-  if (agentType === 'planner') checkPlanner(errors, d);
+  if (agentType === 'cc-planner') checkPlanner(errors, d);
   if (DEVELOPERS.includes(agentType)) checkImplementer(errors, d);
-  if (agentType === 'code-reviewer') checkReviewer(errors, d);
-  if (agentType === 'analyste') checkAnalyste(errors, d);
+  if (agentType === 'cc-code-reviewer') checkReviewer(errors, d);
+  if (agentType === 'cc-analyste') checkAnalyste(errors, d);
+  if (PR_REVIEWERS.includes(agentType)) checkPrReviewer(errors, d, agentType);
+  if (agentType === 'cc-pr-verifier') checkPrVerifier(errors, d);
   return errors;
 }
 
