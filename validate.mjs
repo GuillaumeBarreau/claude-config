@@ -10,6 +10,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { AGENT_PREFIX, LEGACY_AGENTS } from './template/.claude/skills/team/scripts/deliverable.mjs';
+
 const MODELS = ['haiku', 'sonnet', 'opus', 'fable', 'inherit'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'];
@@ -137,6 +139,11 @@ function checkAgents(claudeDir, skills, managed, errors, warnings) {
     const label = `agents/${entry.name}`;
     agents.add(name);
     const report = managed(label) ? errors : warnings;
+    // Nos agents portent le préfixe cc- (ADR 0012) : sans lui, un agent du projet de même
+    // nom entrerait en conflit et serait soumis à nos hooks (check-deliverable).
+    if (managed(label) && !name.startsWith(AGENT_PREFIX)) {
+      errors.push(`${label} : nom « ${name} » sans préfixe « ${AGENT_PREFIX} » — les agents gérés par claude-config sont préfixés (ADR 0012)`);
+    }
     const fm = parseFrontmatter(readFileSync(join(claudeDir, 'agents', entry.name), 'utf8'));
     if (!fm) {
       report.push(`${label} : pas de frontmatter lisible`);
@@ -227,11 +234,14 @@ function checkPullRequest(pr, errors) {
 
 // Associations GitHub d'un auteur (author_association), pour prComments.
 const ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'MANNEQUIN', 'NONE'];
+// Types de revue GitHub et axes à motifs de la section review.
+const REVIEW_EVENTS = ['COMMENT', 'APPROVE', 'REQUEST_CHANGES'];
+const REVIEW_AXES = ['frontend', 'backend'];
 const isObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 const isInt = (v, min) => Number.isInteger(v) && v >= min;
 
 // Clés facultatives (défauts dans les scripts) : sensitivePaths, escalationModel, ci,
-// prComments, lessons, backlog, parallel. Une valeur mal typée serait ignorée ou mal
+// prComments, lessons, backlog, parallel, review. Une valeur mal typée serait ignorée ou mal
 // lue par le script qui la consomme, sans erreur visible.
 function checkOptionalKeys(config, errors, warnings) {
   const err = (key, msg) => errors.push(`team.json : ${key} : ${msg}`);
@@ -296,6 +306,33 @@ function checkOptionalKeys(config, errors, warnings) {
     bool('parallel.enabled', parallel.enabled);
     if (parallel.enabled === true) warnings.push('team.json : parallel.enabled : réservé, sans effet pour l\'instant (voir ADR 0006)');
   }
+  // Module de revue de PR (/team-review) : lu par skills/team-review/scripts/store.mjs.
+  const review = section('review');
+  if (review) {
+    if (review.language !== undefined && !(typeof review.language === 'string' && review.language.trim())) {
+      err('review.language', 'doit être un texte non vide');
+    }
+    if (review.event !== undefined && !REVIEW_EVENTS.includes(review.event)) {
+      err('review.event', `« ${review.event} » inconnu (${REVIEW_EVENTS.join(', ')})`);
+    }
+    int('review.maxInlineCould', review.maxInlineCould, 1);
+    int('review.architectureMinLines', review.architectureMinLines, 1);
+    if (review.axes !== undefined) {
+      if (!isObject(review.axes)) err('review.axes', 'doit être un objet');
+      else {
+        for (const [axis, list] of Object.entries(review.axes)) {
+          if (!REVIEW_AXES.includes(axis)) err(`review.axes.${axis}`, `axe inconnu (${REVIEW_AXES.join(', ')})`);
+          else if (!(Array.isArray(list) && list.every((p) => typeof p === 'string' && p.trim()))) {
+            err(`review.axes.${axis}`, 'doit être une liste de motifs (textes non vides)');
+          }
+        }
+      }
+    }
+    if (review.batch !== undefined) {
+      if (!isObject(review.batch)) err('review.batch', 'doit être un objet');
+      else int('review.batch.maxPrs', review.batch.maxPrs, 1);
+    }
+  }
 }
 
 function readJson(path, label, errors) {
@@ -324,12 +361,16 @@ function checkTeamConfig(claudeDir, agents, errors, warnings) {
     errors.push(`team.json : « autonomy » doit valoir ${AUTONOMY.join(' ou ')} (actuel : ${config.autonomy})`);
   }
   checkPullRequest(config.pullRequest, errors);
-  if (config.agents?.implementer === false) {
-    errors.push('team.json : agent « implementer » ne peut pas être désactivé (agent par défaut des tâches mixtes et des tâches CI/PR)');
+  if (config.agents?.['cc-implementer'] === false) {
+    errors.push('team.json : agent « cc-implementer » ne peut pas être désactivé (agent par défaut des tâches mixtes et des tâches CI/PR)');
   }
   checkOptionalKeys(config, errors, warnings);
   for (const [name, enabled] of Object.entries(config.agents ?? {})) {
-    if (enabled === true && !agents.has(name)) errors.push(`team.json : agent « ${name} » activé mais agents/${name}.md absent`);
+    if (name in LEGACY_AGENTS) {
+      errors.push(`team.json : agents.${name} : ancien nom, renomme la clé en « ${LEGACY_AGENTS[name]} » (relancer install.mjs le fait)`);
+    } else if (enabled === true && !agents.has(name)) {
+      errors.push(`team.json : agent « ${name} » activé mais agents/${name}.md absent`);
+    }
   }
   if (!Array.isArray(config.checks)) {
     errors.push('team.json : « checks » doit être une liste');

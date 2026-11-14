@@ -43,7 +43,7 @@ test('portes plan et livraison, et dérogations : réservées à l\'utilisateur'
   assert.match(errorsOf(state), /gates\.plan : « waived » ne peut être décidé que par l'utilisateur/);
 
   state.gates.plan = { status: 'passed', by: 'user', at: null, notes: '' };
-  state.gates.review = { status: 'waived', by: 'code-reviewer', at: null, notes: 'rien à relire' };
+  state.gates.review = { status: 'waived', by: 'cc-code-reviewer', at: null, notes: 'rien à relire' };
   assert.match(errorsOf(state), /gates\.review : « waived » ne peut être décidé que par l'utilisateur/);
 });
 
@@ -83,7 +83,7 @@ test('done (hors quick) exige toutes les tâches terminées', () => {
   state.status = 'done';
   state.gates.plan = { status: 'passed', by: 'user', at: null, notes: '' };
   state.gates.checks = { status: 'passed', by: 'run-checks', at: null, notes: '' };
-  state.gates.review = { status: 'passed', by: 'code-reviewer', at: null, notes: '' };
+  state.gates.review = { status: 'passed', by: 'cc-code-reviewer', at: null, notes: '' };
   assert.match(errorsOf(state), /« done » : la tâche T1 est « ready »/);
 
   state.tasks[0].status = 'done';
@@ -268,6 +268,20 @@ test('exécution : exige une branche de travail distincte de la branche de base'
   assert.match(errorsOf(state), /branch « main » est la branche de base/);
   state.branch = 'team/2026-10-18-exemple';
   assert.deepEqual(checkState(state), []);
+});
+
+test('run antérieur à 0.10 : agent « implementer » (sans cc-) accepté, même empreinte que cc-implementer ou absent', () => {
+  const state = approvedPlan(example());
+  state.tasks[0].agent = 'implementer';
+  recordPlanCheck(state);
+  state.status = 'ready_for_execution';
+  assert.deepEqual(checkState(state), []);
+  const legacy = planDigest(state.tasks);
+  state.tasks[0].agent = 'cc-implementer';
+  assert.equal(planDigest(state.tasks), legacy);
+  delete state.tasks[0].agent;
+  assert.equal(planDigest(state.tasks), legacy);
+  assert.deepEqual(checkState(state), [], 'l\'empreinte enregistrée reste valable');
 });
 
 // --- Schéma 2 : vérifications déterministes (plan, périmètre, CI) ---

@@ -1,5 +1,5 @@
 ---
-name: analyste
+name: cc-analyste
 description: Explore proactivement le code pour trouver bugs, dette technique, failles de sécurité, améliorations et fonctionnalités manquantes. Classe les constats par sévérité et prépare des issues GitHub prêtes (issueTitle + issueBody). Lecture seule - ne modifie jamais de fichier. Lancé par la skill /team-audit, pas par /team.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit
@@ -59,6 +59,6 @@ Le focus restreint ton exploration (sauf `all`) :
 ## Livrable
 
 Ton rapport **est** le bloc JSON décrit dans `.claude/skills/team/deliverables.md`
-(section analyste), qui **termine** ton message, sans rien après. Avant lui, en prose
+(section cc-analyste), qui **termine** ton message, sans rien après. Avant lui, en prose
 courte : ce que tu as exploré, ce que tu n'as pas pu vérifier, et un résumé des
 constats par sévérité.

@@ -42,7 +42,7 @@ export function deliveredState(overrides = {}) {
     limits: { maxAttempts: 2, maxClarificationRounds: 2 },
     tasks: [{
       id: 'T1', title: 'Export', description: 'Exporter en CSV.', type: 'feature', priority: 'P1', complexity: 'S',
-      acceptanceCriteria: ['AC1'], dependsOn: [], files: ['src/export.js'], agent: 'implementer', tests: [], risks: [],
+      acceptanceCriteria: ['AC1'], dependsOn: [], files: ['src/export.js'], agent: 'cc-implementer', tests: [], risks: [],
       requiresHuman: false, status: 'done', attempts: 1, validation: { checks: 'passed', review: 'approve', evidence: [] },
     }],
     checks: [{ name: 'tests', command: 'npm test', required: true, status: 'passed', at, summary: '' }],

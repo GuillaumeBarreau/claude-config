@@ -33,7 +33,7 @@
       "files": ["src/exemple.py"],
       "newFiles": [],
       "origin": "plan",
-      "agent": "implementer",
+      "agent": "cc-implementer",
       "tests": ["Test unitaire du cas nominal et du cas vide"],
       "risks": [],
       "requiresHuman": false,
@@ -62,6 +62,6 @@
   "blockedReason": null,
   "log": [
     { "at": "2026-10-18T10:00:00Z", "actor": "orchestrator", "event": "run_created", "detail": "Piste standard" },
-    { "at": "2026-10-18T10:20:00Z", "actor": "planner", "event": "plan_delivered", "detail": "1 tâche" }
+    { "at": "2026-10-18T10:20:00Z", "actor": "cc-planner", "event": "plan_delivered", "detail": "1 tâche" }
   ]
 }

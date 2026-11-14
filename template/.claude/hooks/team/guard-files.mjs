@@ -3,8 +3,8 @@
 // garde-fous eux-mêmes.
 //
 // - deny : lire ou écrire un fichier de secrets (.env, clé privée) ;
-// - deny : un agent développeur (implementer, implementer-backend, implementer-frontend,
-//   documentation) écrit dans .claude/ ou .agent-runs/ (l'état du run et la
+// - deny : un agent développeur (cc-implementer, cc-implementer-backend, cc-implementer-frontend,
+//   cc-documentation, cc-expert) écrit dans .claude/ ou .agent-runs/ (l'état du run et la
 //   configuration appartiennent à l'orchestrateur et au projet) ;
 // - ask  : modifier les réglages ou les hooks de l'équipe — un agent ne désactive pas
 //   ses propres garde-fous sans l'accord de l'utilisateur.
@@ -18,7 +18,7 @@ const HOOK = 'guard-files';
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'MultiEdit'];
 // Copie de DEVELOPERS (skills/team/scripts/deliverable.mjs), gardée ici pour que ce
 // garde-fou ne dépende que de lib.mjs ; un test vérifie que les deux listes concordent.
-export const GUARDED_AGENTS = ['implementer', 'implementer-backend', 'implementer-frontend', 'documentation', 'expert'];
+export const GUARDED_AGENTS = ['cc-implementer', 'cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation', 'cc-expert'];
 
 const projectRelative = (projectDir, path) => {
   const rel = relative(resolve(projectDir), resolve(projectDir, path)).split('\\').join('/');

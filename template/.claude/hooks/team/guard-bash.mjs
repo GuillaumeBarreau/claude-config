@@ -6,9 +6,11 @@
 // - deny : jamais acceptable pour un agent (commit ou push sur la branche de base,
 //   contournement des hooks Git, lecture de secrets, suppression massive) ;
 // - ask  : possible avec l'accord de l'utilisateur, demandé par Claude Code (push,
-//   publication, actions destructives, ajout de dépendance, et toute commande `gh` qui
-//   n'est pas une lecture connue : view, list, status, diff, checks, run watch, search,
-//   `gh api` en GET sans champ).
+//   publication, actions destructives dont `git worktree remove --force` hors
+//   .agent-reviews/, ajout de dépendance, et toute commande `gh` qui n'est pas une
+//   lecture connue : view, list, status, diff, checks, run watch, search, `gh api` en GET
+//   sans champ ; publication d'une revue de PR par publish.mjs sans --dry-run,
+//   préparation en lot par review-batch.mjs --yes).
 //
 // Chaque segment est normalisé avant contrôle : préfixes retirés ((, {, &, env, command,
 // exec, sudo), sous-commandes $( ) et `…` examinées, premier mot réduit à son nom de base
@@ -84,6 +86,12 @@ function checkGit(sub, args, ctx) {
     case 'filter-branch': case 'filter-repo': return ask('réécriture d\'historique');
     case 'tag': return operands.length && !flags.some((f) => /^(-l|--list)$/.test(f)) ? ask('création ou suppression de tag') : null;
     case 'stash': return ['drop', 'clear'].includes(operands[0]) ? ask('git stash drop/clear perd des changements') : null;
+    case 'worktree': {
+      // Le worktree jetable d'une revue de PR (.agent-reviews/pr-<n>/worktree) se retire sans question.
+      const reviewDir = operands.slice(1).some((p) => /(^|[\\/])\.agent-reviews([\\/]|$)/.test(p));
+      return operands[0] === 'remove' && flags.some((f) => /^(-f|--force)$/.test(f)) && !reviewDir
+        ? ask('git worktree remove --force supprime un worktree et ses changements non commités') : null;
+    }
     default: return null;
   }
 }
@@ -126,6 +134,17 @@ function checkGh(rest) {
   return ask(`gh ${args.slice(0, 2).join(' ')} : action GitHub hors lecture, accord explicite requis`);
 }
 
+// Module de revue de PR : publish.mjs écrit sur GitHub, review-batch.mjs --yes lance
+// claude. Le chemin du script est reconnu quel que soit le préfixe (.claude/, absolu, \).
+const REVIEW_SCRIPT = /(?:^|[\\/])skills[\\/]team-review[\\/]scripts[\\/](publish|review-batch)\.mjs$/i;
+
+function checkNode(rest) {
+  const script = rest.map((a) => REVIEW_SCRIPT.exec(a)?.[1].toLowerCase()).find(Boolean);
+  if (script === 'publish' && !rest.includes('--dry-run')) return ask('publication d\'une revue sur GitHub : accord explicite requis');
+  if (script === 'review-batch' && rest.includes('--yes')) return ask('review-batch --yes lance claude pour chaque PR en attente : accord explicite requis');
+  return null;
+}
+
 function checkSegment({ cmd, tokens: rest }, ctx) {
   if (cmd === 'git') {
     let i = 0;
@@ -133,6 +152,7 @@ function checkSegment({ cmd, tokens: rest }, ctx) {
     return rest[i] ? checkGit(rest[i], rest.slice(i + 1), ctx) : null;
   }
   if (cmd === 'gh') return checkGh(rest);
+  if (cmd === 'node') return checkNode(rest);
   if (cmd === 'glab' && /^mr merge\b/.test(rest.join(' '))) return deny(MERGE_DENY);
   if (cmd === 'glab' && /^mr create/.test(rest.join(' '))) return ask('glab mr create : accord explicite requis');
   if (['npm', 'pnpm', 'yarn', 'cargo', 'poetry'].includes(cmd) && rest[0] === 'publish') return ask(`${cmd} publish : accord explicite requis`);

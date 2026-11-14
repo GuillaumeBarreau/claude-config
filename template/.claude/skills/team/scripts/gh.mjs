@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkState } from './check-state.mjs';
+import { DEFAULT_DEVELOPER } from './deliverable.mjs';
 
 export const CLAUDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -125,7 +126,7 @@ export function correctiveTask({ id, title, description, origin, files = [] }) {
     dependsOn: [],
     files,
     newFiles: [],
-    agent: 'implementer',
+    agent: DEFAULT_DEVELOPER,
     tests: [],
     risks: [],
     requiresHuman: false,

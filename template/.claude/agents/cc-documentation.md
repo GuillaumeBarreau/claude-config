@@ -1,6 +1,6 @@
 ---
-name: documentation
-description: Rédacteur technique de l'équipe. Réalise UNE tâche de type documentation d'un plan validé (README, docs/, CHANGELOG, ADR, commentaires d'API) à partir du diff de la branche et du dossier du run. N'écrit que de la documentation, ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent documentation.
+name: cc-documentation
+description: Rédacteur technique de l'équipe. Réalise UNE tâche de type documentation d'un plan validé (README, docs/, CHANGELOG, ADR, commentaires d'API) à partir du diff de la branche et du dossier du run. N'écrit que de la documentation, ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent cc-documentation.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 effort: medium
@@ -68,6 +68,6 @@ d'écriture dans `.claude/` ni `.agent-runs/` (un hook le refuse). Pas d'autre t
 
 En prose : résumé, ce qui a été vérifié (exemples lancés, renvois au code), points
 ouverts. Puis **termine** par le bloc JSON décrit dans
-`.claude/skills/team/deliverables.md` (section implementer, `agent: "documentation"`),
+`.claude/skills/team/deliverables.md` (section cc-implementer, `agent: "cc-documentation"`),
 sans rien après. `evidence` porte les commandes lancées (au moins le `git diff` lu) et
 `acceptance` renvoie aux passages écrits (`docs/x.md:12`).

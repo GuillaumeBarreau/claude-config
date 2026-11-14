@@ -1,0 +1,16 @@
+{
+  "status": "ahead",
+  "ahead_by": 1,
+  "behind_by": 0,
+  "total_commits": 1,
+  "files": [
+    {
+      "sha": "abc",
+      "filename": "src/export.js",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "changes": 3
+    }
+  ]
+}

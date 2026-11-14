@@ -1,6 +1,6 @@
 ---
 name: team
-description: Orchestrateur de l'équipe d'agents. Prend une demande (bug, fonctionnalité, refactoring), choisit la piste (quick, standard, full), fait spécifier et planifier par l'agent planner, fait valider le plan, puis fait exécuter chaque tâche par son agent développeur (implementer par défaut, implementer-backend, implementer-frontend, documentation, ou expert pour la logique complexe), contrôler par run-checks et relire par code-reviewer jusqu'à une branche prête pour une PR, puis suit la CI et les commentaires de PR. Suit l'état du run dans .agent-runs/. Lancement manuel uniquement.
+description: Orchestrateur de l'équipe d'agents. Prend une demande (bug, fonctionnalité, refactoring), choisit la piste (quick, standard, full), fait spécifier et planifier par l'agent cc-planner, fait valider le plan, puis fait exécuter chaque tâche par son agent développeur (cc-implementer par défaut, cc-implementer-backend, cc-implementer-frontend, cc-documentation, ou cc-expert pour la logique complexe), contrôler par run-checks et relire par cc-code-reviewer jusqu'à une branche prête pour une PR, puis suit la CI et les commentaires de PR. Suit l'état du run dans .agent-runs/. Lancement manuel uniquement.
 argument-hint: "<demande> | reprendre <id-du-run> [--pr]"
 disable-model-invocation: true
 ---
@@ -84,9 +84,9 @@ puis enchaîne sur l'exécution.
 ## 5. Exécution (pistes standard et full)
 
 Suis le workflow (§ Exécution) : pour chaque tâche prête, son agent (`task.agent`,
-défaut `implementer` ; workflow § Agents développeurs et routage) → `check-scope` →
-`run-checks` → `code-reviewer` → commit de la tâche. En cas d'échec : correction avec
-**escalade** (2e tentative sur `escalationModel`, puis l'agent `expert`), puis
+défaut `cc-implementer` ; workflow § Agents développeurs et routage) → `check-scope` →
+`run-checks` → `cc-code-reviewer` → commit de la tâche. En cas d'échec : correction avec
+**escalade** (2e tentative sur `escalationModel`, puis l'agent `cc-expert`), puis
 **redécoupage** par le planner
 avant de bloquer, quel que soit le développeur. Question `technical` d'un développeur
 → **planner en mode `consult`** ; seule une question `product` passe le run en

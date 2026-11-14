@@ -29,20 +29,20 @@ const finding = (over = {}) => ({
 });
 
 const reviewer = (over = {}) => ({
-  agent: 'code-reviewer', run: 'r1', status: 'ready', questions: [], task: 'T2', verdict: 'approve',
+  agent: 'cc-code-reviewer', run: 'r1', status: 'ready', questions: [], task: 'T2', verdict: 'approve',
   findings: [], acceptance: [{ id: 'AC1', status: 'covered', evidence: 'test/a.test.js:4' }],
   checks: [{ command: 'npm test', result: '12 passed' }], ...over,
 });
 
 const implementer = (over = {}) => ({
-  agent: 'implementer', run: 'r1', status: 'ready', questions: [], task: 'T1',
+  agent: 'cc-implementer', run: 'r1', status: 'ready', questions: [], task: 'T1',
   files: [{ path: 'src/a.js', change: 'garde sur chaîne vide' }],
   acceptance: [{ id: 'AC1', status: 'covered', evidence: 'test/a.test.js:4' }],
   evidence: [{ command: 'npm test', result: 'échec puis 12 passed' }], deviations: [], ...over,
 });
 
 const planner = (over = {}) => ({
-  agent: 'planner', run: 'r1', status: 'ready', questions: [], mode: 'spec+plan',
+  agent: 'cc-planner', run: 'r1', status: 'ready', questions: [], mode: 'spec+plan',
   acceptanceCriteria: ['AC1', 'AC2'], taskIds: ['T1'], ...over,
 });
 
@@ -64,43 +64,43 @@ test('extractDeliverable : absence de bloc, texte après le bloc, JSON invalide 
 // --- validateDeliverable ---
 
 test('validateDeliverable : livrables conformes des trois agents', () => {
-  assert.deepEqual(validateDeliverable(planner(), 'planner'), []);
-  assert.deepEqual(validateDeliverable(implementer(), 'implementer'), []);
-  assert.deepEqual(validateDeliverable(reviewer(), 'code-reviewer'), []);
-  assert.deepEqual(validateDeliverable(reviewer({ run: null, task: null }), 'code-reviewer'), []);
-  assert.deepEqual(validateDeliverable(reviewer({ verdict: 'changes_requested', findings: [finding()] }), 'code-reviewer'), []);
+  assert.deepEqual(validateDeliverable(planner(), 'cc-planner'), []);
+  assert.deepEqual(validateDeliverable(implementer(), 'cc-implementer'), []);
+  assert.deepEqual(validateDeliverable(reviewer(), 'cc-code-reviewer'), []);
+  assert.deepEqual(validateDeliverable(reviewer({ run: null, task: null }), 'cc-code-reviewer'), []);
+  assert.deepEqual(validateDeliverable(reviewer({ verdict: 'changes_requested', findings: [finding()] }), 'cc-code-reviewer'), []);
   assert.deepEqual(validateDeliverable(planner({ mode: 'consult', acceptanceCriteria: undefined, taskIds: undefined,
-    answer: { decision: 'Garder le cache', rationale: 'Plus simple', constraints: [] } }), 'planner'), []);
+    answer: { decision: 'Garder le cache', rationale: 'Plus simple', constraints: [] } }), 'cc-planner'), []);
   assert.deepEqual(validateDeliverable(planner({ mode: 'split', acceptanceCriteria: undefined, taskIds: undefined,
     replaces: 'T3', tasks: [{ id: 'T3.1', title: 'x', acceptanceCriteria: ['AC1'], dependsOn: [], files: ['src/a.js'],
-      newFiles: [], requiresHuman: false }] }), 'planner'), []);
+      newFiles: [], requiresHuman: false }] }), 'cc-planner'), []);
 });
 
 test('validateDeliverable : champs communs et cohérence', () => {
   const errs = (obj, agent) => validateDeliverable(obj, agent).join('\n');
-  assert.match(errs(implementer({ agent: 'planner' }), 'implementer'), /agent/);
-  assert.match(errs(implementer({ status: 'done' }), 'implementer'), /status/);
-  assert.match(errs(implementer({ run: 3 }), 'implementer'), /run/);
-  assert.match(errs(implementer({ status: 'needs_input', questions: [] }), 'implementer'), /question/);
-  assert.match(errs(implementer({ status: 'needs_input', questions: [{ kind: 'urgent', text: 'x' }] }), 'implementer'), /kind/);
-  assert.match(errs(implementer({ files: [] }), 'implementer'), /files/);
-  assert.match(errs(implementer({ evidence: [] }), 'implementer'), /evidence/);
-  assert.match(errs(implementer({ acceptance: [{ id: 'AC1', status: 'ok', evidence: '' }] }), 'implementer'), /acceptance/);
-  assert.match(errs(implementer({ task: '' }), 'implementer'), /task/);
-  assert.match(errs(planner({ mode: 'draft' }), 'planner'), /mode/);
-  assert.match(errs(planner({ acceptanceCriteria: [] }), 'planner'), /acceptanceCriteria/);
-  assert.match(errs(planner({ mode: 'consult' }), 'planner'), /answer/);
-  assert.match(errs(planner({ mode: 'split', replaces: 'T3', tasks: [] }), 'planner'), /tasks/);
+  assert.match(errs(implementer({ agent: 'cc-planner' }), 'cc-implementer'), /agent/);
+  assert.match(errs(implementer({ status: 'done' }), 'cc-implementer'), /status/);
+  assert.match(errs(implementer({ run: 3 }), 'cc-implementer'), /run/);
+  assert.match(errs(implementer({ status: 'needs_input', questions: [] }), 'cc-implementer'), /question/);
+  assert.match(errs(implementer({ status: 'needs_input', questions: [{ kind: 'urgent', text: 'x' }] }), 'cc-implementer'), /kind/);
+  assert.match(errs(implementer({ files: [] }), 'cc-implementer'), /files/);
+  assert.match(errs(implementer({ evidence: [] }), 'cc-implementer'), /evidence/);
+  assert.match(errs(implementer({ acceptance: [{ id: 'AC1', status: 'ok', evidence: '' }] }), 'cc-implementer'), /acceptance/);
+  assert.match(errs(implementer({ task: '' }), 'cc-implementer'), /task/);
+  assert.match(errs(planner({ mode: 'draft' }), 'cc-planner'), /mode/);
+  assert.match(errs(planner({ acceptanceCriteria: [] }), 'cc-planner'), /acceptanceCriteria/);
+  assert.match(errs(planner({ mode: 'consult' }), 'cc-planner'), /answer/);
+  assert.match(errs(planner({ mode: 'split', replaces: 'T3', tasks: [] }), 'cc-planner'), /tasks/);
   assert.match(errs(reviewer(), 'inconnu'), /agent/);
-  assert.match(errs([], 'implementer'), /objet/);
+  assert.match(errs([], 'cc-implementer'), /objet/);
 });
 
 test('validateDeliverable : verdict cohérent avec les constats', () => {
-  const errs = (obj) => validateDeliverable(obj, 'code-reviewer').join('\n');
+  const errs = (obj) => validateDeliverable(obj, 'cc-code-reviewer').join('\n');
   assert.match(errs(reviewer({ findings: [finding()] })), /approve/);
   assert.match(errs(reviewer({ findings: [finding({ severity: 'critical' })] })), /approve/);
-  assert.deepEqual(validateDeliverable(reviewer({ findings: [finding({ confidence: 'plausible' })] }), 'code-reviewer'), []);
-  assert.deepEqual(validateDeliverable(reviewer({ findings: [finding({ severity: 'minor' })] }), 'code-reviewer'), []);
+  assert.deepEqual(validateDeliverable(reviewer({ findings: [finding({ confidence: 'plausible' })] }), 'cc-code-reviewer'), []);
+  assert.deepEqual(validateDeliverable(reviewer({ findings: [finding({ severity: 'minor' })] }), 'cc-code-reviewer'), []);
   assert.match(errs(reviewer({ verdict: 'changes_requested' })), /changes_requested/);
   assert.match(errs(reviewer({ verdict: 'ok' })), /verdict/);
   assert.match(errs(reviewer({ findings: [finding({ severity: 'high' })] })), /severity/);
@@ -109,7 +109,7 @@ test('validateDeliverable : verdict cohérent avec les constats', () => {
 });
 
 const analyste = (over = {}) => ({
-  agent: 'analyste', run: null, status: 'ready', questions: [], mode: 'audit', scope: null, focus: 'all',
+  agent: 'cc-analyste', run: null, status: 'ready', questions: [], mode: 'audit', scope: null, focus: 'all',
   findings: [{ ...finding(), type: 'security', source: 'review', issueTitle: 'Faille XSS', issueBody: '## Objectif\n\nCorr.\n\n## Comportement attendu ou critères\n\n- OK\n\n## Hors périmètre\n\n- Rien' }],
   summary: '1 constat de sécurité.', ...over,
 });
@@ -117,45 +117,45 @@ const analyste = (over = {}) => ({
 // --- validateDeliverable : analyste ---
 
 test('validateDeliverable : livrable analyste conforme', () => {
-  assert.deepEqual(validateDeliverable(analyste(), 'analyste'), []);
-  assert.deepEqual(validateDeliverable(analyste({ findings: [] }), 'analyste'), []);
-  assert.deepEqual(validateDeliverable(analyste({ mode: 'targeted', scope: 'src/auth.js' }), 'analyste'), []);
+  assert.deepEqual(validateDeliverable(analyste(), 'cc-analyste'), []);
+  assert.deepEqual(validateDeliverable(analyste({ findings: [] }), 'cc-analyste'), []);
+  assert.deepEqual(validateDeliverable(analyste({ mode: 'targeted', scope: 'src/auth.js' }), 'cc-analyste'), []);
 });
 
 test('validateDeliverable : analyste mode invalide', () => {
-  const errs = validateDeliverable(analyste({ mode: 'scan' }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ mode: 'scan' }), 'cc-analyste').join('\n');
   assert.match(errs, /mode/);
 });
 
 test('validateDeliverable : analyste focus invalide', () => {
-  const errs = validateDeliverable(analyste({ focus: 'ux' }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ focus: 'ux' }), 'cc-analyste').join('\n');
   assert.match(errs, /focus/);
 });
 
 test('validateDeliverable : analyste summary manquant', () => {
-  const errs = validateDeliverable(analyste({ summary: '' }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ summary: '' }), 'cc-analyste').join('\n');
   assert.match(errs, /summary/);
 });
 
 test('validateDeliverable : analyste finding sans type', () => {
   const f = { ...finding(), source: 'review', issueTitle: 'x', issueBody: 'x' };
-  const errs = validateDeliverable(analyste({ findings: [f] }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ findings: [f] }), 'cc-analyste').join('\n');
   assert.match(errs, /type/);
 });
 
 test('validateDeliverable : analyste finding sans issueTitle', () => {
   const f = { ...finding(), type: 'debt', source: 'review', issueBody: 'x' };
-  const errs = validateDeliverable(analyste({ findings: [f] }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ findings: [f] }), 'cc-analyste').join('\n');
   assert.match(errs, /issueTitle/);
 });
 
 test('validateDeliverable : analyste scope requis en mode targeted', () => {
-  const errs = validateDeliverable(analyste({ mode: 'targeted' }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ mode: 'targeted' }), 'cc-analyste').join('\n');
   assert.match(errs, /scope/);
 });
 
 test('validateDeliverable : analyste scope doit être null en mode audit', () => {
-  const errs = validateDeliverable(analyste({ scope: 'src/' }), 'analyste').join('\n');
+  const errs = validateDeliverable(analyste({ scope: 'src/' }), 'cc-analyste').join('\n');
   assert.match(errs, /scope/);
 });
 
@@ -175,42 +175,42 @@ test('check-deliverable : sans bloc, texte après le bloc, approve avec constat 
   const root = templateCopy();
   runDir(root);
   for (const message of ['Statut : ready\nTout est fait.', `${block(implementer())}Merci !`]) {
-    const r = runHook(root, 'check-deliverable.mjs', stop('implementer', message));
+    const r = runHook(root, 'check-deliverable.mjs', stop('cc-implementer', message));
     assert.equal(r.code, 0, r.stderr);
     assert.equal(r.json?.decision, 'block', message);
     assert.match(r.json.reason, /deliverables\.md/);
   }
-  const r = runHook(root, 'check-deliverable.mjs', stop('code-reviewer', block(reviewer({ findings: [finding()] }))));
+  const r = runHook(root, 'check-deliverable.mjs', stop('cc-code-reviewer', block(reviewer({ findings: [finding()] }))));
   assert.equal(r.json?.decision, 'block');
   assert.match(r.json.reason, /approve/);
   assert.ok(!existsSync(join(root, '.agent-runs/r1/review-T2-1.json')));
 });
 
 test('livrable des développeurs spécialisés et de documentation : schéma implementer, agent = le sien', () => {
-  for (const agent of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+  for (const agent of ['cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation']) {
     assert.deepEqual(validateDeliverable(implementer({ agent }), agent), [], agent);
     assert.match(validateDeliverable(implementer({ agent, files: [] }), agent).join('\n'), /files/, agent);
     assert.match(validateDeliverable(implementer(), agent).join('\n'), /agent/, agent);
   }
   const root = templateCopy();
   const dir = runDir(root);
-  const ko = runHook(root, 'check-deliverable.mjs', stop('implementer-backend', 'Fini, sans bloc.'));
+  const ko = runHook(root, 'check-deliverable.mjs', stop('cc-implementer-backend', 'Fini, sans bloc.'));
   assert.equal(ko.json?.decision, 'block');
-  const ok = runHook(root, 'check-deliverable.mjs', stop('documentation', block(implementer({ agent: 'documentation' }))));
+  const ok = runHook(root, 'check-deliverable.mjs', stop('cc-documentation', block(implementer({ agent: 'cc-documentation' }))));
   assert.equal(ok.stdout.trim(), '');
-  assert.ok(readdirSync(join(dir, 'deliverables')).some((f) => /-documentation-T1\.json$/.test(f)));
+  assert.ok(readdirSync(join(dir, 'deliverables')).some((f) => /-cc-documentation-T1\.json$/.test(f)));
 });
 
 test('check-deliverable : jamais de block si stop_hook_active ; le rejet est mesuré', () => {
   const root = templateCopy();
   const dir = runDir(root);
-  const r = runHook(root, 'check-deliverable.mjs', stop('implementer', 'pas de bloc', { stop_hook_active: true }));
+  const r = runHook(root, 'check-deliverable.mjs', stop('cc-implementer', 'pas de bloc', { stop_hook_active: true }));
   assert.equal(r.code, 0);
   assert.equal(r.stdout.trim(), '');
   assert.match(r.stderr, /livrable/);
   const lines = readFileSync(join(dir, 'metrics.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.equal(lines.at(-1).kind, 'deliverable_rejected');
-  assert.equal(lines.at(-1).agent, 'implementer');
+  assert.equal(lines.at(-1).agent, 'cc-implementer');
 });
 
 test('check-deliverable : relecteur valide pour T2 → review-T2-1.json puis review-T2-2.json identiques au bloc', () => {
@@ -219,18 +219,18 @@ test('check-deliverable : relecteur valide pour T2 → review-T2-1.json puis rev
   const obj = reviewer();
   const stateBefore = readFileSync(join(dir, 'state.json'), 'utf8');
   for (const k of [1, 2]) {
-    const r = runHook(root, 'check-deliverable.mjs', stop('code-reviewer', block(obj)));
+    const r = runHook(root, 'check-deliverable.mjs', stop('cc-code-reviewer', block(obj)));
     assert.equal(r.code, 0, r.stderr);
     assert.equal(r.stdout.trim(), '');
     assert.deepEqual(JSON.parse(readFileSync(join(dir, `review-T2-${k}.json`), 'utf8')), obj);
   }
-  assert.deepEqual(readdirSync(join(dir, 'deliverables')).sort(), ['001-code-reviewer-T2.json', '002-code-reviewer-T2.json']);
+  assert.deepEqual(readdirSync(join(dir, 'deliverables')).sort(), ['001-cc-code-reviewer-T2.json', '002-cc-code-reviewer-T2.json']);
   assert.equal(readFileSync(join(dir, 'state.json'), 'utf8'), stateBefore, 'state.json jamais modifié');
 
-  runHook(root, 'check-deliverable.mjs', stop('code-reviewer', block(reviewer({ task: null }))));
+  runHook(root, 'check-deliverable.mjs', stop('cc-code-reviewer', block(reviewer({ task: null }))));
   assert.ok(existsSync(join(dir, 'review-1.json')));
-  runHook(root, 'check-deliverable.mjs', stop('planner', block(planner())));
-  assert.ok(existsSync(join(dir, 'deliverables', '004-planner.json')));
+  runHook(root, 'check-deliverable.mjs', stop('cc-planner', block(planner())));
+  assert.ok(existsSync(join(dir, 'deliverables', '004-cc-planner.json')));
 });
 
 test('check-deliverable : lit SubagentHandback ou le texte final dans agent_transcript_path si last_assistant_message est vide', () => {
@@ -247,14 +247,14 @@ test('check-deliverable : lit SubagentHandback ou le texte final dans agent_tran
   });
 
   writeFile(transcript, [handbackLine(block(implementer())), toolResultLine].join('\n'));
-  const ok = runHook(root, 'check-deliverable.mjs', stop('implementer', '', { agent_transcript_path: transcript }));
+  const ok = runHook(root, 'check-deliverable.mjs', stop('cc-implementer', '', { agent_transcript_path: transcript }));
   assert.equal(ok.code, 0, ok.stderr);
   assert.equal(ok.stdout.trim(), '');
-  assert.ok(existsSync(join(dir, 'deliverables', '001-implementer-T1.json')));
+  assert.ok(existsSync(join(dir, 'deliverables', '001-cc-implementer-T1.json')));
 
   // Un livrable invalide dans SubagentHandback renvoie l'erreur de schéma réelle (pas « aucun bloc »).
   writeFile(transcript, [handbackLine(block(implementer({ files: [] }))), toolResultLine].join('\n'));
-  const ko = runHook(root, 'check-deliverable.mjs', stop('implementer', '', { agent_transcript_path: transcript }));
+  const ko = runHook(root, 'check-deliverable.mjs', stop('cc-implementer', '', { agent_transcript_path: transcript }));
   assert.equal(ko.json?.decision, 'block');
   assert.match(ko.json.reason, /files/);
 
@@ -268,17 +268,17 @@ test('check-deliverable : lit SubagentHandback ou le texte final dans agent_tran
     message: { role: 'assistant', content: [{ type: 'thinking', thinking: '…' }] },
   });
   writeFile(transcript, [textLine, thinkingLine].join('\n'));
-  const okText = runHook(root, 'check-deliverable.mjs', stop('planner', undefined, { agent_transcript_path: transcript }));
+  const okText = runHook(root, 'check-deliverable.mjs', stop('cc-planner', undefined, { agent_transcript_path: transcript }));
   assert.equal(okText.stdout.trim(), '');
-  assert.ok(existsSync(join(dir, 'deliverables', '002-planner.json')));
+  assert.ok(existsSync(join(dir, 'deliverables', '002-cc-planner.json')));
 });
 
 test('check-deliverable : run null ou introuvable → rien écrit ; agent hors équipe jamais bloqué ; entrée illisible → 0', () => {
   const root = templateCopy();
   runDir(root);
-  const none = runHook(root, 'check-deliverable.mjs', stop('code-reviewer', block(reviewer({ run: null }))));
+  const none = runHook(root, 'check-deliverable.mjs', stop('cc-code-reviewer', block(reviewer({ run: null }))));
   assert.equal(none.stdout.trim(), '');
-  const ghost = runHook(root, 'check-deliverable.mjs', stop('code-reviewer', block(reviewer({ run: 'absent' }))));
+  const ghost = runHook(root, 'check-deliverable.mjs', stop('cc-code-reviewer', block(reviewer({ run: 'absent' }))));
   assert.equal(ghost.stdout.trim(), '');
   assert.ok(!existsSync(join(root, '.agent-runs/r1/review-T2-1.json')));
   assert.ok(!existsSync(join(root, '.agent-runs/absent')));
@@ -297,7 +297,7 @@ test('deliverable.mjs (CLI) : 0 si valide, 1 sinon', () => {
   const script = join(root, '.claude/skills/team/scripts/deliverable.mjs');
   writeFile(join(root, 'ok.md'), block(implementer()));
   writeFile(join(root, 'ko.md'), block(implementer({ files: [] })));
-  const run = (file) => spawnSync(process.execPath, [script, join(root, file), '--agent', 'implementer'], { encoding: 'utf8' });
+  const run = (file) => spawnSync(process.execPath, [script, join(root, file), '--agent', 'cc-implementer'], { encoding: 'utf8' });
   assert.equal(run('ok.md').status, 0);
   const ko = run('ko.md');
   assert.equal(ko.status, 1);
@@ -334,7 +334,7 @@ test('agents : bloc final renvoyé à deliverables.md, corps ≤ 100 lignes, val
     assert.ok(body.split(/\r?\n/).length <= 100, `${name} : corps trop long`);
   }
   // Procédure commune une seule fois : les trois implementers la préchargent.
-  for (const name of ['implementer', 'implementer-backend', 'implementer-frontend']) {
+  for (const name of ['cc-implementer', 'cc-implementer-backend', 'cc-implementer-frontend']) {
     const { data } = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents', `${name}.md`), 'utf8'));
     assert.deepEqual(data.skills.slice(0, 2), ['team-rules', 'team-implementer'], name);
   }

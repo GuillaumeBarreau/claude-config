@@ -108,7 +108,7 @@ test('guard-files : modifier les garde-fous demande un accord ; l\'implementer n
   assert.equal(evaluateFile('Read', { file_path: '/projet/.claude/settings.json' }, { projectDir: root }), null);
   assert.equal(evaluateFile('Edit', { file_path: '/projet/src/a.ts' }, { projectDir: root }), null);
 
-  const impl = { projectDir: root, agentType: 'implementer' };
+  const impl = { projectDir: root, agentType: 'cc-implementer' };
   assert.equal(evaluateFile('Write', { file_path: '/projet/.agent-runs/r/state.json' }, impl)?.decision, 'deny');
   assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/team.json' }, impl)?.decision, 'deny');
   assert.equal(evaluateFile('Edit', { file_path: '/projet/src/a.ts' }, impl), null);
@@ -117,7 +117,7 @@ test('guard-files : modifier les garde-fous demande un accord ; l\'implementer n
 
 test('guard-files : les implementers spécialisés et documentation ne touchent ni .claude/ ni .agent-runs/', () => {
   const root = '/projet';
-  for (const agentType of ['implementer-backend', 'implementer-frontend', 'documentation']) {
+  for (const agentType of ['cc-implementer-backend', 'cc-implementer-frontend', 'cc-documentation']) {
     const ctx = { projectDir: root, agentType };
     assert.equal(evaluateFile('Write', { file_path: '/projet/.agent-runs/r/state.json' }, ctx)?.decision, 'deny', agentType);
     assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/team.json' }, ctx)?.decision, 'deny', agentType);

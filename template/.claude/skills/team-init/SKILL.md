@@ -62,19 +62,27 @@ Propose enfin les réglages facultatifs, en partant des valeurs actuelles de
 | `lessons`         | `enabled: true`, `maxEntries: 30`      | `enabled: false` pour ne pas garder de leçons entre les runs                      |
 | `backlog`         | `label: "agent-ready"`, `priorityLabels: ["P0","P1","P2"]`, `draftPr: false`, `maxIssues: 3`, `maxBudgetUsd: 5` | Traitement planifié des issues ; `priorityLabels` : labels de priorité, du plus haut au plus bas ; `draftPr: true` autorise l'ouverture de PR brouillons |
 
+Si l'utilisateur relit des PR avec `/team-review`, propose aussi `review.axes` : les motifs
+(`*`, `**`, `?`) qui répartissent les fichiers d'une PR entre les relecteurs
+`frontend` et `backend`. Déduis-les de la structure **lue** (dossiers de l'interface et
+du serveur, par exemple `client/**` et `server/**`), montre-les et fais-les valider.
+Sans motif, tous les fichiers vont dans « other » et seul le relecteur d'architecture
+les lit. Les autres clés de `review` (`maxInlineCould`, `architectureMinLines`,
+`batch.maxPrs`) gardent leurs défauts sauf demande.
+
 Pour `ci`, vérifie que `gh auth status` réussit ; sinon propose `enabled: false` ou
 dis comment authentifier `gh`. `parallel` est réservé : laisse `enabled: false`.
 
 ## 4. Conventions des implementers spécialisés
 
-`implementer-backend` et `implementer-frontend` préchargent chacun une skill de
+`cc-implementer-backend` et `cc-implementer-frontend` préchargent chacun une skill de
 conventions **propre au projet** (créée par l'installation, jamais remplacée ensuite).
 Pour chaque côté :
 
 1. **Le projet a-t-il ce côté ?** Serveur (routes, contrôleurs, services, accès aux
    données, migrations) ; interface (composants, pages, styles, `package.json` d'une
    application web ou mobile). Un côté absent → propose `agents.<nom>: false` dans
-   `team.json` (les tâches iront à `implementer`). Pareil pour `documentation` si
+   `team.json` (les tâches iront à `cc-implementer`). Pareil pour `cc-documentation` si
    l'utilisateur ne veut pas de tâche de documentation dédiée.
 2. **Sinon, lis le code** et rédige la skill, courte (≤ 80 lignes), à partir de ce que
    tu as **vu**, chaque point avec le fichier qui le montre :
@@ -120,7 +128,7 @@ Après un accord explicite, écris les skills de conventions validées et mets �
   "baseBranch": "main",
   "commitConvention": "Conventional Commits (feat:, fix:…)",
   "autonomy": "supervised",
-  "agents": { "implementer-frontend": false },
+  "agents": { "cc-implementer-frontend": false },
   "checks": [
     { "name": "lint", "command": "ruff check .", "required": true },
     { "name": "tests", "command": "pytest", "required": true }
@@ -131,4 +139,5 @@ Après un accord explicite, écris les skills de conventions validées et mets �
 N'écris que les clés validées par l'utilisateur ; conserve les autres clés existantes
 (`maxAttempts`, `pullRequest`, `ci`…) ; dans `agents`, ne change que les agents
 validés. Termine par un rappel : `team.json`, les skills de conventions et le modèle
-d'issue appartiennent au projet et peuvent être commités ; `.agent-runs/` est ignoré par Git.
+d'issue appartiennent au projet et peuvent être commités ; `.agent-runs/` et
+`.agent-reviews/` (revues de PR, personnelles) sont ignorés par Git.

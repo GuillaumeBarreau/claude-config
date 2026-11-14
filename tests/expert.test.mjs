@@ -12,16 +12,16 @@ import { parseFrontmatter, splitList } from '../validate.mjs';
 import { TEMPLATE_CLAUDE } from './helpers.mjs';
 
 test('expert est un développeur, gardé comme les autres', () => {
-  assert.ok(DEVELOPERS.includes('expert'));
-  assert.ok(GUARDED_AGENTS.includes('expert'));
-  const ctx = { projectDir: '/projet', agentType: 'expert' };
+  assert.ok(DEVELOPERS.includes('cc-expert'));
+  assert.ok(GUARDED_AGENTS.includes('cc-expert'));
+  const ctx = { projectDir: '/projet', agentType: 'cc-expert' };
   assert.equal(evaluateFile('Write', { file_path: '/projet/.agent-runs/r/state.json' }, ctx)?.decision, 'deny');
   assert.equal(evaluateFile('Edit', { file_path: '/projet/.claude/settings.json' }, ctx)?.decision, 'deny');
   assert.equal(evaluateFile('Edit', { file_path: '/projet/src/algo.ts' }, ctx), null);
 });
 
 test('expert : modèle le plus capable, effort maximal, procédure commune des développeurs', () => {
-  const fm = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents/expert.md'), 'utf8'));
+  const fm = parseFrontmatter(readFileSync(join(TEMPLATE_CLAUDE, 'agents/cc-expert.md'), 'utf8'));
   assert.equal(fm.data.model, 'fable');
   assert.equal(fm.data.effort, 'max');
   assert.deepEqual(splitList(fm.data.skills).sort(), ['team-implementer', 'team-rules']);
@@ -29,18 +29,18 @@ test('expert : modèle le plus capable, effort maximal, procédure commune des d
 
 test('expert : livrable au schéma implementer, vérifié par check-deliverable (matcher SubagentStop)', () => {
   const deliverable = {
-    agent: 'expert', run: 'r1', status: 'ready', questions: [], task: 'T1',
+    agent: 'cc-expert', run: 'r1', status: 'ready', questions: [], task: 'T1',
     files: [{ path: 'src/algo.ts', change: 'algorithme corrigé' }],
     acceptance: [{ id: 'AC1', status: 'covered', evidence: 'test/algo.test.ts:12' }],
     evidence: [{ command: 'npm test', result: 'passed' }], deviations: [],
   };
-  assert.deepEqual(validateDeliverable(deliverable, 'expert'), []);
+  assert.deepEqual(validateDeliverable(deliverable, 'cc-expert'), []);
   const settings = JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'settings.json'), 'utf8'));
   const matchers = settings.hooks.SubagentStop.map((g) => g.matcher.split('|'));
-  assert.ok(matchers.some((m) => m.includes('expert')));
+  assert.ok(matchers.some((m) => m.includes('cc-expert')));
 });
 
 test('team.json : expert activé par défaut', () => {
   const team = JSON.parse(readFileSync(join(TEMPLATE_CLAUDE, 'team.json'), 'utf8'));
-  assert.equal(team.agents.expert, true);
+  assert.equal(team.agents['cc-expert'], true);
 });

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Triage de la revue</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --surface: #ffffff; --text: #1c2026; --muted: #5d6673; --border: #d5dae1;
+    --accent: #2456c4; --accent-text: #ffffff; --ok: #1a7f46; --ko: #b3261e; --warn: #9a5b00;
+    --must: #b3261e; --should: #9a5b00; --could: #2456c4; --ask: #6b3fb5; --code: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --surface: #1d2128; --text: #e7eaee; --muted: #a0a9b6; --border: #353c47;
+      --accent: #7da6ff; --accent-text: #10131a; --ok: #5fd08f; --ko: #ff8a80; --warn: #f0b860;
+      --must: #ff8a80; --should: #f0b860; --could: #7da6ff; --ask: #c3a6ff; --code: #262b34;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; overflow-wrap: anywhere; }
+  h2 { font-size: 1.05rem; margin: 0; overflow-wrap: anywhere; }
+  .muted { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .chip { border: 1px solid var(--border); border-radius: 999px; padding: 1px 10px; font-size: .85rem; background: var(--surface); white-space: nowrap; }
+  .chip.MUST { color: var(--must); border-color: var(--must); } .chip.SHOULD { color: var(--should); border-color: var(--should); }
+  .chip.COULD { color: var(--could); border-color: var(--could); } .chip.ASK { color: var(--ask); border-color: var(--ask); }
+  .chip.passed { color: var(--ok); border-color: var(--ok); } .chip.failed { color: var(--ko); border-color: var(--ko); }
+  .chip.pending { color: var(--warn); border-color: var(--warn); }
+  #status { position: sticky; top: 0; z-index: 2; padding: 6px 12px; border-radius: 6px; margin: 8px 0; min-height: 2.2em; background: var(--surface); border: 1px solid var(--border); }
+  #status.error { color: var(--ko); border-color: var(--ko); font-weight: 600; }
+  #status.saved { color: var(--ok); }
+  article, details.rejected { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 12px 0; }
+  article.published { opacity: .8; }
+  details.rejected > summary { cursor: pointer; font-weight: 600; }
+  details.rejected article { border: 0; padding: 12px 0 0; margin: 0; }
+  .where { font-family: ui-monospace, Consolas, monospace; font-size: .9rem; overflow-wrap: anywhere; }
+  dl { margin: 10px 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+  pre { background: var(--code); border-radius: 6px; padding: 8px; overflow-x: auto; margin: 6px 0; font: .85rem/1.45 ui-monospace, Consolas, monospace; white-space: pre; }
+  label { display: block; font-weight: 600; margin-top: 10px; }
+  textarea, input[type="text"], select { width: 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+  select { width: auto; }
+  textarea { min-height: 7em; resize: vertical; }
+  fieldset { border: 0; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+  button { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled, textarea:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  @media (max-width: 560px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Chargement…</h1>
+    <div class="muted" id="subtitle"></div>
+    <div class="bar" id="counters" aria-label="Compteurs"></div>
+    <div class="bar">
+      <label for="filter" style="margin:0">Afficher</label>
+      <select id="filter">
+        <option value="all">tous les constats</option>
+        <option value="none">sans décision</option>
+        <option value="ok">validés</option>
+        <option value="ko">rejetés</option>
+        <option value="discuss">à discuter</option>
+      </select>
+    </div>
+    <div id="status" role="status" aria-live="polite">Chaque changement est enregistré automatiquement.</div>
+  </header>
+  <section id="list" aria-label="Constats"></section>
+  <p class="muted">Rapport local et personnel. Cette page ne publie rien : la publication se fait depuis la conversation, après ton accord.</p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const token = new URLSearchParams(location.search).get('t') || '';
+  const api = (path) => `${path}?t=${encodeURIComponent(token)}`;
+  const SEVERITY = ['critical', 'major', 'minor'];
+  const LABELS = ['MUST', 'SHOULD', 'COULD', 'ASK'];
+  const TRACKING = { new: 'nouveau', persisting: 'persistant', fixed: 'corrigé', unknown: 'suivi inconnu' };
+  const PROOF = { script: 'preuve : commande exécutée', read: 'preuve : lecture citée', none: 'sans preuve' };
+  const DECISIONS = [['ok', 'Valider'], ['ko', 'Rejeter'], ['discuss', 'À discuter']];
+  const RATINGS = [['correct', 'Correct'], ['incorrect', 'Incorrect']];
+  const MODES = { comments: 'revue GitHub (commentaires)', fixes: 'liste de corrections locale (ta PR)' };
+  const CI = { passed: 'CI réussie', failed: 'CI en échec', pending: 'CI en cours', none: 'pas de CI' };
+  let review = null;
+  const timers = new Map();
+
+  // Toute donnée de la PR passe par textContent : jamais d'HTML construit à partir d'elle.
+  const el = (tag, props = {}, children = []) => {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(props)) {
+      if (key === 'text') node.textContent = value;
+      else if (key === 'class') node.className = value;
+      else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+      else if (value !== false && value !== null && value !== undefined) node.setAttribute(key, value === true ? '' : value);
+    }
+    for (const child of [].concat(children)) if (child) node.append(child);
+    return node;
+  };
+  const status = (text, kind = '') => {
+    const node = document.getElementById('status');
+    node.textContent = text;
+    node.className = kind;
+  };
+  const lastRound = () => review.rounds[review.rounds.length - 1];
+  const active = () => review.findings.filter((f) => f.lastRound === lastRound().n);
+
+  async function save(id, patch) {
+    status('Enregistrement…');
+    try {
+      const res = await fetch(api(`/api/findings/${encodeURIComponent(id)}`), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data.errors || [data.error || `erreur ${res.status}`]).join(' ; '));
+      const at = review.findings.findIndex((f) => f.id === id);
+      review.findings[at] = data.finding;
+      if (data.round) review.rounds[review.rounds.length - 1] = data.round;
+      status(`${id} enregistré.`, 'saved');
+      return true;
+    } catch (err) {
+      status(`Échec de l'enregistrement de ${id} : ${err.message}. Le changement n'est pas sauvegardé.`, 'error');
+      return false;
+    }
+  }
+  const saveLater = (id, patch) => {
+    clearTimeout(timers.get(id + Object.keys(patch)[0]));
+    timers.set(id + Object.keys(patch)[0], setTimeout(() => save(id, patch).then(renderCounters), 600));
+  };
+
+  function renderHeader() {
+    const round = lastRound();
+    document.title = `Triage — PR #${review.pr.number}`;
+    document.getElementById('title').textContent = `PR #${review.pr.number} — ${review.pr.title}`;
+    const sub = document.getElementById('subtitle');
+    sub.replaceChildren(
+      el('span', { text: `@${review.pr.author} · ${review.pr.headRef} → ${review.pr.baseRef} · round ${round.n} (${String(round.headSha).slice(0, 7)}) · ` }),
+      el('span', { text: `Sortie : ${MODES[review.mode] || review.mode}` }),
+    );
+  }
+
+  function renderCounters() {
+    const items = active();
+    const box = document.getElementById('counters');
+    const chips = [el('span', { class: `chip ${lastRound().ci || ''}`, text: CI[lastRound().ci] || 'CI inconnue' })];
+    for (const label of LABELS) chips.push(el('span', { class: `chip ${label}`, text: `${label} ${items.filter((f) => f.label === label).length}` }));
+    const count = (d) => items.filter((f) => (f.decision || 'none') === d).length;
+    chips.push(el('span', { class: 'chip', text: `validés ${count('ok')}` }), el('span', { class: 'chip', text: `rejetés ${count('ko')}` }),
+      el('span', { class: 'chip', text: `à discuter ${count('discuss')}` }), el('span', { class: 'chip', text: `sans décision ${count('none')}` }),
+      el('span', { class: 'chip', text: `publiés ${items.filter((f) => f.publication).length}` }));
+    box.replaceChildren(...chips);
+  }
+
+  function toggleGroup(legend, options, current, disabled, onPick) {
+    const buttons = options.map(([value, text]) => el('button', {
+      type: 'button', text, 'aria-pressed': String(current === value), disabled,
+      onclick: async (event) => {
+        const pressed = event.currentTarget.getAttribute('aria-pressed') === 'true';
+        if (await onPick(pressed ? null : value)) render();
+      },
+    }));
+    return el('fieldset', {}, [el('legend', { text: legend }), ...buttons]);
+  }
+
+  function card(f) {
+    const published = Boolean(f.publication);
+    const uid = `f-${f.id}`;
+    const where = f.line ? `${f.file}:${f.line}${f.endLine && f.endLine !== f.line ? `-${f.endLine}` : ''}` : f.file;
+    const select = el('select', { id: `${uid}-label`, disabled: published, 'aria-label': `Étiquette de ${f.id}`,
+      onchange: (e) => save(f.id, { label: e.target.value }).then(render) },
+    LABELS.map((l) => el('option', { value: l, text: l, selected: l === f.label })));
+    const reset = el('button', { type: 'button', text: 'Rétablir le brouillon', disabled: published || f.comment === f.draft,
+      onclick: () => save(f.id, { comment: f.draft }).then(render) });
+    const textarea = el('textarea', { id: `${uid}-comment`, disabled: published, oninput: (e) => {
+      reset.disabled = e.target.value === f.draft;
+      saveLater(f.id, { comment: e.target.value });
+    } });
+    textarea.value = f.comment || '';
+    const note = el('input', { type: 'text', id: `${uid}-note`, oninput: (e) => saveLater(f.id, { note: e.target.value }) });
+    note.value = f.note || '';
+    const rows = [['Problème', f.problem], ['Scénario', f.scenario], ['Preuve', f.evidence], ['Correction', f.fix]].filter(([, v]) => v);
+    if (f.verification) {
+      const verdict = { confirmed: 'confirmé', downgraded: `revu à la baisse (était ${f.verification.originalSeverity})`, rejected: 'rejeté' }[f.verification.verdict] || f.verification.verdict;
+      rows.push(['Vérificateur', `${verdict} — ${f.verification.reason}`]);
+    }
+    return el('article', { class: published ? 'published' : '', 'aria-labelledby': `${uid}-title` }, [
+      el('div', { class: 'row' }, [
+        el('h2', { id: `${uid}-title`, text: `${f.id} · ${f.title}` }),
+        el('div', { class: 'bar', style: 'margin:0' }, [
+          select,
+          el('span', { class: 'chip', text: f.severity }),
+          el('span', { class: 'chip', text: (f.axes || []).join(', ') }),
+          el('span', { class: 'chip', text: TRACKING[f.tracking] || f.tracking }),
+          el('span', { class: 'chip', text: PROOF[f.proof] || f.proof }),
+          f.regression ? el('span', { class: 'chip', text: 'régression' }) : null,
+          f.preexisting ? el('span', { class: 'chip', text: 'préexistant' }) : null,
+          el('span', { class: 'chip', text: f.anchor === 'line' ? 'commentaire en ligne' : 'hors diff' }),
+          published ? el('span', { class: 'chip passed', text: 'publié' }) : null,
+        ]),
+      ]),
+      el('div', { class: 'where muted', text: where }),
+      el('dl', {}, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])),
+      f.snippet ? el('pre', { text: f.snippet, tabindex: '0', 'aria-label': 'Extrait de code' }) : null,
+      f.suggestion ? el('div', {}, [el('div', { class: 'muted', text: 'Suggestion de remplacement' }), el('pre', { text: f.suggestion, tabindex: '0' })]) : null,
+      el('label', { for: `${uid}-comment`, text: published ? 'Commentaire publié' : 'Commentaire à publier (modifiable)' }),
+      textarea,
+      el('div', { class: 'bar' }, [
+        reset,
+        f.comment !== f.draft ? el('span', { class: 'muted', text: 'modifié par rapport au brouillon de l\'agent' }) : null,
+      ]),
+      toggleGroup('Décision (publier ?)', DECISIONS, f.decision, published, (value) => save(f.id, { decision: value })),
+      toggleGroup('Le constat était-il juste ?', RATINGS, f.rating, false, (value) => save(f.id, { rating: value })),
+      el('label', { for: `${uid}-note`, text: 'Note personnelle (jamais publiée)' }),
+      note,
+    ]);
+  }
+
+  function render() {
+    renderHeader();
+    renderCounters();
+    const filter = document.getElementById('filter').value;
+    const rank = (f) => SEVERITY.indexOf(f.severity);
+    const items = active().filter((f) => filter === 'all' || (f.decision || 'none') === filter)
+      .sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const kept = items.filter((f) => !(f.verification && f.verification.verdict === 'rejected'));
+    const rejected = items.filter((f) => f.verification && f.verification.verdict === 'rejected');
+    const list = document.getElementById('list');
+    const focused = document.activeElement && document.activeElement.id;
+    const nodes = kept.map(card);
+    for (const f of rejected) {
+      nodes.push(el('details', { class: 'rejected' }, [
+        el('summary', { text: `${f.id} · ${f.title} — écarté par le vérificateur` }),
+        card(f),
+      ]));
+    }
+    if (!nodes.length) nodes.push(el('p', { class: 'muted', text: active().length ? 'Aucun constat pour ce filtre.' : 'Aucun constat dans ce round.' }));
+    list.replaceChildren(...nodes);
+    if (focused) { const again = document.getElementById(focused); if (again) again.focus(); }
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(api('/api/review'));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `erreur ${res.status}`);
+      review = data;
+      render();
+    } catch (err) {
+      document.getElementById('title').textContent = 'Revue illisible';
+      status(`Impossible de charger la revue : ${err.message}`, 'error');
+    }
+  }
+  document.getElementById('filter').addEventListener('change', render);
+  load();
+})();
+</script>
+</body>
+</html>

@@ -53,7 +53,7 @@ infrastructure ; `priority` ∈ P0, P1, P2 ; `complexity` ∈ S, M, L.
   secrets, `.claude/`, motifs `sensitivePaths` de `team.json`) → `requiresHuman: true`.
 - `origin` : `plan` pour les tâches de ce bloc.
 - `agent` : le développeur qui réalise la tâche (routage ci-dessous) ; absent =
-  `implementer`. `check-plan` refuse un agent inconnu ou désactivé dans `team.json`
+  `cc-implementer`. `check-plan` refuse un agent inconnu ou désactivé dans `team.json`
   (`agents.<nom>: false`).
 
 ### Routage des tâches
@@ -64,18 +64,18 @@ côté se lit dans l'arborescence et dans les skills `conventions-backend` /
 
 | Fichiers de la tâche                                  | `agent`                |
 | ----------------------------------------------------- | ---------------------- |
-| tous côté serveur (API, services, données, jobs)      | `implementer-backend`  |
-| tous côté interface (composants, pages, styles)       | `implementer-frontend` |
-| uniquement de la documentation (README, docs/, CHANGELOG, ADR) | `documentation` |
-| logique complexe : algorithme, concurrence, machine à états, calcul de précision, bug de cause inconnue | `expert` |
-| mixtes, outillage, configuration, ou doute            | `implementer`          |
+| tous côté serveur (API, services, données, jobs)      | `cc-implementer-backend`  |
+| tous côté interface (composants, pages, styles)       | `cc-implementer-frontend` |
+| uniquement de la documentation (README, docs/, CHANGELOG, ADR) | `cc-documentation` |
+| logique complexe : algorithme, concurrence, machine à états, calcul de précision, bug de cause inconnue | `cc-expert` |
+| mixtes, outillage, configuration, ou doute            | `cc-implementer`          |
 
-`expert` (modèle le plus capable, le plus coûteux) seulement quand la difficulté est
+`cc-expert` (modèle le plus capable, le plus coûteux) seulement quand la difficulté est
 dans la logique elle-même, jamais pour du volume. Un spécialiste désactivé dans
-`team.json` est remplacé par `implementer`. Si le
+`team.json` est remplacé par `cc-implementer`. Si le
 changement modifie un comportement visible, une API ou la configuration, le plan
-comprend une tâche `type: "documentation"` (agent `documentation` s'il est activé,
-sinon `implementer`), qui dépend des tâches qu'elle documente.
+comprend une tâche `type: "documentation"` (agent `cc-documentation` s'il est activé,
+sinon `cc-implementer`), qui dépend des tâches qu'elle documente.
 
 ```json
 [
@@ -91,7 +91,7 @@ sinon `implementer`), qui dépend des tâches qu'elle documente.
     "files": ["src/…"],
     "newFiles": [],
     "origin": "plan",
-    "agent": "implementer",
+    "agent": "cc-implementer",
     "tests": ["…"],
     "risks": [],
     "requiresHuman": false,

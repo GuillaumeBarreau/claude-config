@@ -1,17 +1,17 @@
 ---
 name: team-audit
-description: Analyse proactive du code. Lance l'agent analyste, présente les constats classés, et crée des issues GitHub (label agent-ready) avec l'accord de l'utilisateur.
+description: Analyse proactive du code. Lance l'agent cc-analyste, présente les constats classés, et crée des issues GitHub (label agent-ready) avec l'accord de l'utilisateur.
 argument-hint: "[--scope <chemin>] [--focus security|debt|features|performance|architecture|all]"
 allowed-tools: Bash(node .claude/skills/team-audit/scripts/create-issues.mjs *)
 ---
 
-Tu lances un audit du code avec l'agent `analyste`, puis tu proposes de créer des
+Tu lances un audit du code avec l'agent `cc-analyste`, puis tu proposes de créer des
 issues GitHub à partir de ses constats.
 
 ## 1. Préparer
 
-Lis `.claude/team.json`. Si `agents.analyste` est absent ou `false` :
-> L'agent analyste est désactivé dans `team.json`. Active-le avec `"analyste": true`.
+Lis `.claude/team.json`. Si `agents.cc-analyste` est absent ou `false` :
+> L'agent analyste est désactivé dans `team.json`. Active-le avec `"cc-analyste": true`.
 
 Parse `$ARGUMENTS` :
 - `--scope <chemin>` → mode `targeted`, scope = `<chemin>`
@@ -20,10 +20,10 @@ Parse `$ARGUMENTS` :
 
 ## 2. Lancer l'analyste
 
-Lance l'agent `analyste` comme sous-agent avec cette description :
+Lance l'agent `cc-analyste` comme sous-agent avec cette description :
 
 ```
-analyste audit : mode=<mode> focus=<focus> scope=<scope|null>
+cc-analyste audit : mode=<mode> focus=<focus> scope=<scope|null>
 ```
 
 Il renvoie un livrable JSON avec ses constats.

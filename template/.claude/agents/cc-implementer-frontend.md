@@ -1,6 +1,6 @@
 ---
-name: implementer-frontend
-description: Développeur front-end de l'équipe. Réalise UNE tâche d'un plan validé dont tous les fichiers sont côté interface (composants, pages, état client, styles) avec ses tests, ou corrige les constats, commentaires de PR et contrôles en échec de cette tâche. Ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent implementer-frontend.
+name: cc-implementer-frontend
+description: Développeur front-end de l'équipe. Réalise UNE tâche d'un plan validé dont tous les fichiers sont côté interface (composants, pages, état client, styles) avec ses tests, ou corrige les constats, commentaires de PR et contrôles en échec de cette tâche. Ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team quand la tâche porte agent cc-implementer-frontend.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 effort: high

@@ -19,6 +19,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+import { DEFAULT_DEVELOPER, canonicalAgent } from './deliverable.mjs';
+
 export const RUN_STATUSES = [
   'qualifying', 'specifying', 'awaiting_input', 'planning', 'awaiting_plan_approval',
   'ready_for_execution', 'executing', 'checking', 'reviewing',
@@ -86,8 +88,9 @@ export function planDigest(tasks) {
       acceptanceCriteria: t.acceptanceCriteria,
       dependsOn: t.dependsOn,
       requiresHuman: t.requiresHuman,
-      // Agent hors défaut seulement : l'empreinte des runs antérieurs (implementer) ne change pas.
-      ...(t.agent && t.agent !== 'implementer' ? { agent: t.agent } : {}),
+      // Agent hors défaut seulement, tel qu'écrit : l'empreinte des runs antérieurs
+      // (agent absent, « implementer » ou nom sans préfixe) ne change pas.
+      ...(t.agent && canonicalAgent(t.agent) !== DEFAULT_DEVELOPER ? { agent: t.agent } : {}),
     }))
     .sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
   return createHash('sha256').update(JSON.stringify(reduced)).digest('hex');

@@ -1,5 +1,5 @@
 ---
-name: implementer
+name: cc-implementer
 description: Développeur généraliste de l'équipe, agent par défaut. Réalise UNE tâche d'un plan validé (code et tests) sur la branche de travail du run - tâches mixtes front et back, ou projet sans séparation -, ou corrige les constats de relecture, les commentaires de PR et les contrôles en échec de cette tâche. Ne commite pas, ne pousse pas, ne touche ni .claude/ ni .agent-runs/. Lancé par l'orchestrateur /team.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet

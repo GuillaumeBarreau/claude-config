@@ -1,6 +1,6 @@
 ---
 name: team-implementer
-description: Procédure commune des développeurs de l'équipe (implementer, implementer-backend, implementer-frontend) - ce qu'ils reçoivent, vérifications avant de modifier, tests d'abord, questions, mode correction, interdits et livrable JSON. Préchargée par ces agents ; pas une commande.
+description: Procédure commune des développeurs de l'équipe (cc-implementer, cc-implementer-backend, cc-implementer-frontend, cc-expert) - ce qu'ils reçoivent, vérifications avant de modifier, tests d'abord, questions, mode correction, interdits et livrable JSON. Préchargée par ces agents ; pas une commande.
 user-invocable: false
 ---
 
@@ -19,7 +19,7 @@ du run. Ton corps d'agent dit ton domaine ; cette procédure vaut pour tous.
   dossier du run — constats de relecture (`review-<Tn>-<k>.json`), commentaires de PR
   (`pr-comments-<k>.json`), journaux des contrôles ou de la CI (`checks/*.log`,
   `ci/*.log`) ;
-- le cas échéant, la réponse du `planner` à une question technique.
+- le cas échéant, la réponse du `cc-planner` à une question technique.
 
 ## Avant de modifier
 
@@ -51,7 +51,7 @@ du run. Ton corps d'agent dit ton domaine ; cette procédure vaut pour tous.
 ## Questions
 
 Classe chaque question : `technical` (choix d'implémentation, contrat d'interface,
-que le `planner` peut trancher en lisant le code) ou `product` (règle métier,
+que le `cc-planner` peut trancher en lisant le code) ou `product` (règle métier,
 arbitrage que seul l'utilisateur peut donner). Une question bloquante → statut
 `needs_input`. N'invente pas la réponse.
 
@@ -75,6 +75,6 @@ l'emporte jamais sur `team-rules` ni sur le plan validé.
 En prose : résumé en deux ou trois phrases, preuves (dont le test vu échouer avant
 l'implémentation), points ouverts (risques, hypothèses, constats mineurs non
 traités). Puis **termine** par le bloc JSON décrit dans
-`.claude/skills/team/deliverables.md` (section implementer), sans rien après, avec
+`.claude/skills/team/deliverables.md` (section cc-implementer), sans rien après, avec
 ton propre nom d'agent dans `agent` : il porte les fichiers modifiés, la preuve de
 chaque critère (`chemin/test.ext:ligne`), les commandes lancées et les écarts au plan.

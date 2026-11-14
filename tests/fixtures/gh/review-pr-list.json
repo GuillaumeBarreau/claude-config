@@ -1,0 +1,80 @@
+[
+  {
+    "author": {
+      "id": "U_bob",
+      "is_bot": false,
+      "login": "bob",
+      "name": "Bob"
+    },
+    "headRefOid": "1111111111111111111111111111111111111111",
+    "isDraft": false,
+    "number": 42,
+    "reviewRequests": [
+      {
+        "__typename": "User",
+        "login": "alice"
+      }
+    ],
+    "title": "Export CSV : virgules et bouton",
+    "updatedAt": "2026-11-12T09:00:00Z",
+    "url": "https://github.com/acme/app/pull/42"
+  },
+  {
+    "author": {
+      "id": "U_alice",
+      "is_bot": false,
+      "login": "alice",
+      "name": "Alice"
+    },
+    "headRefOid": "2222222222222222222222222222222222222222",
+    "isDraft": true,
+    "number": 43,
+    "reviewRequests": [],
+    "title": "Brouillon : pagination",
+    "updatedAt": "2026-11-12T10:00:00Z",
+    "url": "https://github.com/acme/app/pull/43"
+  },
+  {
+    "author": {
+      "id": "U_carol",
+      "is_bot": false,
+      "login": "carol",
+      "name": "Carol"
+    },
+    "headRefOid": "3333333333333333333333333333333333333333",
+    "isDraft": false,
+    "number": 44,
+    "reviewRequests": [
+      {
+        "__typename": "Team",
+        "name": "Core",
+        "slug": "core"
+      },
+      {
+        "__typename": "User",
+        "login": "dave"
+      }
+    ],
+    "title": "Refonte des filtres",
+    "updatedAt": "2026-11-12T11:00:00Z",
+    "url": "https://github.com/acme/app/pull/44"
+  },
+  {
+    "author": {
+      "is_bot": true,
+      "login": "app/dependabot"
+    },
+    "headRefOid": "4444444444444444444444444444444444444444",
+    "isDraft": false,
+    "number": 45,
+    "reviewRequests": [
+      {
+        "__typename": "User",
+        "login": "alice"
+      }
+    ],
+    "title": "chore(deps): bump lodash",
+    "updatedAt": "2026-11-12T12:00:00Z",
+    "url": "https://github.com/acme/app/pull/45"
+  }
+]
